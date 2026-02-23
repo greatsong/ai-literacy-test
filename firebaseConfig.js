@@ -1,6 +1,6 @@
 // Firebase Configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyC3ETpnAQSdvpUAMrdxYL_gjziVp4ymKQs",
+    apiKey: window.__FIREBASE_API_KEY__ || "FIREBASE_API_KEY_NOT_SET",
     authDomain: "ai-literacy-test.firebaseapp.com",
     projectId: "ai-literacy-test",
     storageBucket: "ai-literacy-test.firebasestorage.app",

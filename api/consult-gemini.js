@@ -21,8 +21,7 @@ export default async function handler(req, res) {
 
     const { stats, weakCategory, weakQuestion, weakQuestionText } = req.body;
 
-    // Using user-provided key directly for immediate deployment
-    const API_KEY = "AIzaSyCmLlRqgTtQ9VtQ_rIBNlTfLPO2Rcy52cs";
+    const API_KEY = process.env.GEMINI_API_KEY;
 
     if (!API_KEY) {
         return res.status(500).json({ error: 'Server API Key not configured' });
