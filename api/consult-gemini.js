@@ -29,7 +29,7 @@ export default async function handler(req, res) {
 
     try {
         const genAI = new GoogleGenerativeAI(API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         const prompt = `
     당신은 교육 전문가입니다. 학생들의 'AI 협업 역량 진단' 결과입니다.
