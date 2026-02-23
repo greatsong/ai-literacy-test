@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-CQ Admin Dashboard</title>
+
+    <!-- Marked for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Firebase SDK (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <!-- Firebase Config -->
+    <script src="firebaseConfig.js"></script>
+
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+
+    <style type="text/tailwindcss">
+        body {
+            background-color: #F8FAFC;
+            color: #1E293B;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .card {
+            @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+        }
+        .stat-value {
+            @apply text-3xl font-bold text-indigo-600 mt-2;
+        }
+        .stat-label {
+            @apply text-sm text-gray-500 font-medium;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen">
+
+    <!-- Auth Overlay -->
+    <div id="auth-overlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm">
+            <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">🔒 관리자 로그인</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">이메일</label>
+                    <input type="email" id="admin-email" placeholder="admin@example.com"
+                        class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">비밀번호</label>
+                    <input type="password" id="admin-password" placeholder="••••••••"
+                        class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                        onkeypress="if(event.key === 'Enter') adminLogin()">
+                </div>
+
+                <button onclick="adminLogin()"
+                    class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition shadow-lg">
+                    로그인
+                </button>
+
+                <div id="first-time-box" class="mt-6 pt-4 border-t border-dashed">
+                    <p class="text-xs text-gray-400 text-center mb-2">계정이 없으신가요? (최초 1회 설정)</p>
+                    <button onclick="adminSignup()" class="w-full text-indigo-600 text-xs font-bold hover:underline">
+                        계정 생성하기 (Sign Up)
+                    </button>
+                    <p class="text-[10px] text-red-400 text-center mt-2 leading-tight">
+                        * 주의: 계정 생성은 최초 관리자 등록을 위해서만 사용하세요.<br>
+                        등록 후에는 이 버튼을 비활성화하는 것이 안전합니다.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Advice Modal -->
+    <div id="ai-modal"
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div class="p-6 border-b flex justify-between items-center bg-indigo-600 rounded-t-2xl text-white">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    ✨ Gemini 교육 컨설턴트
+                </h3>
+                <button onclick="closeAIModal()" class="hover:bg-indigo-700 p-1 rounded">✕</button>
+            </div>
+            <div id="ai-content"
+                class="p-8 overflow-y-auto prose dark:prose-invert max-w-none leading-relaxed text-gray-700">
+                <!-- Content goes here -->
+                <div class="flex flex-col items-center justify-center py-12 text-gray-400">
+                    <svg class="animate-spin h-8 w-8 text-indigo-500 mb-4" xmlns="http://www.w3.org/2000/svg"
+                        fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    <p>학생 데이터를 분석하고 있습니다...</p>
+                    <p class="text-xs mt-2 text-indigo-400">약 5~10초 소요됩니다.</p>
+                </div>
+            </div>
+            <div class="p-4 border-t bg-gray-50 rounded-b-2xl flex justify-end">
+                <button onclick="closeAIModal()"
+                    class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-bold text-gray-700">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard" class="max-w-7xl mx-auto p-6 hidden">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800">📊 AI 협업 역량 진단 - 선생님 대시보드</h1>
+                <p class="text-slate-500 text-sm">학생들의 진단 결과를 입체적으로 분석합니다.</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="fetchData()"
+                    class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center shadow-sm">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
+                    데이터 새로고침
+                </button>
+                <button onclick="resetData()"
+                    class="px-4 py-2 bg-white border border-red-200 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 flex items-center shadow-sm ml-2">
+                    데이터 초기화
+                </button>
+                <button onclick="adminLogout()"
+                    class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50 text-red-500 font-medium">로그아웃</button>
+                <a href="index.html"
+                    class="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-100">학생
+                    화면</a>
+            </div>
+        </header>
+
+        <!-- Filters -->
+        <div class="card mb-8 flex flex-wrap gap-4 items-center bg-indigo-50 border-indigo-100">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-indigo-900">필터링:</span>
+            </div>
+            <select id="filter-grade" class="px-3 py-2 rounded border border-gray-300 text-sm"
+                onchange="applyFilters()">
+                <option value="all">전체 학년</option>
+                <option value="1">1학년</option>
+                <option value="2">2학년</option>
+                <option value="3">3학년</option>
+            </select>
+            <select id="filter-class" class="px-3 py-2 rounded border border-gray-300 text-sm"
+                onchange="applyFilters()">
+                <option value="all">전체 반</option>
+                <option value="1">1반</option>
+                <option value="2">2반</option>
+                <option value="3">3반</option>
+                <option value="4">4반</option>
+                <option value="5">5반</option>
+                <option value="6">6반</option>
+                <option value="7">7반</option>
+                <option value="8">8반</option>
+                <option value="9">9반</option>
+                <option value="10">10반</option>
+                <option value="11">11반</option>
+                <option value="12">12반</option>
+            </select>
+            <select id="filter-period" class="px-3 py-2 rounded border border-gray-300 text-sm bg-white"
+                onchange="applyFilters()">
+                <option value="7">최근 1주일</option>
+                <option value="30">최근 1개월</option>
+                <option value="all">전체 기간</option>
+            </select>
+            <div class="ml-auto text-sm text-gray-500">
+                총 <span id="count-display" class="font-bold text-indigo-600">0</span>명 데이터
+            </div>
+        </div>
+
+        <!-- Key Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="card">
+                <div class="stat-label flex justify-between">평균 점수 <span id="delta-avg-score"
+                        class="text-xs font-bold"></span></div>
+                <div id="stat-avg-score" class="stat-value">0.0</div>
+                <div class="text-xs text-gray-400 mt-1">/ 20점 만점</div>
+            </div>
+            <div class="card">
+                <div class="stat-label">가장 부족한 역량</div>
+                <div id="stat-weak-cat" class="text-xl font-bold text-orange-500 mt-2">-</div>
+            </div>
+            <div class="card">
+                <div class="stat-label flex justify-between">최고 레벨 학생 <span id="delta-top-level"
+                        class="text-xs font-bold"></span></div>
+                <div id="stat-top-level" class="stat-value">0%</div>
+                <div class="text-xs text-gray-400 mt-1">우주급 드라이버 비율</div>
+            </div>
+            <!-- AI Analysis Button -->
+            <div class="card bg-gradient-to-br from-indigo-600 to-purple-600 text-white border-none relative overflow-hidden group cursor-pointer hover:shadow-lg transition-all"
+                onclick="generateAIInsight()">
+                <div class="relative z-10">
+                    <div class="text-indigo-100 text-sm font-medium mb-1"> ✨ Gemini AI Analysis</div>
+                    <div class="text-lg font-bold">맞춤형 수업 가이드<br>받아보기 &rarr;</div>
+                </div>
+                <div
+                    class="absolute -right-4 -bottom-4 bg-white/10 w-24 h-24 rounded-full blur-xl group-hover:scale-150 transition-transform duration-500">
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Level Distribution -->
+            <div class="card lg:col-span-1 flex flex-col">
+                <h3 class="font-bold text-gray-700 mb-4">📊 레벨 분포</h3>
+                <div class="relative h-64 w-full">
+                    <canvas id="levelChart"></canvas>
+                </div>
+            </div>
+            <!-- Weakness Heatmap -->
+            <div class="card lg:col-span-2 flex flex-col">
+                <h3 class="font-bold text-gray-700 mb-4">📉 문항별 정답률 (취약점 분석)</h3>
+                <div class="relative h-64 w-full">
+                    <canvas id="weaknessChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparative & Trend Analytics -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Comparative Analytics -->
+            <div class="card flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-gray-700">⚔️ 집단별 비교 (Selected Period)</h3>
+                    <div id="comparison-label" class="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded">
+                        전체 데이터 기준</div>
+                </div>
+                <div class="relative h-72 w-full">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </div>
+            <!-- Trend Analysis -->
+            <div class="card flex flex-col border-indigo-100 bg-indigo-50/20">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-gray-700">📈 변화 추이 (현재 vs 이전 기간)</h3>
+                    <div class="text-xs font-bold text-indigo-500 border border-indigo-200 px-2 py-1 rounded">성장 관찰
+                    </div>
+                </div>
+                <div class="relative h-72 w-full">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Feedback Table -->
+        <div class="card overflow-hidden mt-8">
+            <h3 class="font-bold text-gray-700 mb-4">📋 문항별 상세 응답 패턴</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3">문항 번호</th>
+                            <th class="px-6 py-3">문항 내용</th>
+                            <th class="px-6 py-3">정답률</th>
+                            <th class="px-6 py-3">주요 오답 (가장 많이 선택한 오답)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="details-table-body">
+                        <!-- Injected -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Individual Student Results (Management) -->
+        <div class="card overflow-hidden mt-8 border-red-50">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-gray-700">🧑‍🎓 학생별 상세 결과 관리 (체크하여 삭제 가능)</h3>
+                <button onclick="deleteSelected()" id="delete-selected-btn"
+                    class="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 hidden">
+                    선택 항목 삭제
+                </button>
+            </div>
+            <div class="overflow-x-auto max-h-[500px]">
+                <table class="w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="px-6 py-3 w-10">
+                                <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
+                            </th>
+                            <th class="px-6 py-3">학년-반</th>
+                            <th class="px-6 py-3">점수</th>
+                            <th class="px-6 py-3">레벨</th>
+                            <th class="px-6 py-3">제출 시각</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-table-body">
+                        <!-- Injected -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Questions Data (Embedded for Analysis) ---
+        const QUESTIONS_DATA = [
+            {
+                "id": 1,
+                "category": "Critical_Thinking",
+                "scenario": "역사 수행평가 중 AI가 '임진왜란은 1900년에 일어났다'는 엉터리 정보를 답변했습니다. 당신의 행동은?",
+                "options": [
+                    { "text": "AI가 그랬으니 맞겠지 하고 그대로 쓴다.", "score": 0 },
+                    { "text": "날짜가 좀 이상한데? 하고 그냥 그 문장을 뺀다.", "score": 0 },
+                    { "text": "네이버나 교과서에서 정확한 연도를 다시 찾아본다.", "score": 0 },
+                    { "text": "AI에게 '틀렸어. 1592년 아니야? 정확한 출처를 대봐'라고 지적한다.", "score": 1 },
+                    { "text": "교과서 내용을 찍어 올리거나 정확한 연도를 알려주며, '이 정보를 바탕으로 아까 그 답변 다시 고쳐써'라고 AI를 교정해준다.", "score": 1 }
+                ]
+            },
+            {
+                "id": 2,
+                "category": "Prompt_Engineering",
+                "scenario": "영어 에세이를 쓰려고 합니다. AI에게 첫 요청을 어떻게 보낼까요?",
+                "options": [
+                    { "text": "그냥 “영어 에세이 써줘”라고 입력한다.", "score": 0 },
+                    { "text": "“환경 오염에 관한 에세이 써줘”라고 주제만 던진다.", "score": 0 },
+                    { "text": "“고등학생 수준으로, 서론-본론-결론 구조를 갖춰서 환경 오염 에세이를 500자 내외로 써줘”라고 구체적으로 요청한다.", "score": 0 },
+                    { "text": "형식과 분량 조건뿐만 아니라, “독자의 흥미를 끌 수 있는 문장으로 시작하고, 설득력 있는 근거를 2가지를 포함해줘”라고 세부 지침을 구체적으로 추가한다.", "score": 1 },
+                    { "text": "먼저 AI에게 개요를 짜달라고 한 뒤, 그 개요를 수정보완하고, 각 문단별로 내가 원하는 톤앤매너를 지정하여 단계적으로 글을 완성해나간다.", "score": 1 }
+                ]
+            },
+            { "id": 3, "scenario": "수학 문제를 풀다가 막혔습니다. AI를 어떻게 활용할까요?", "options": [{ "text": "문제 전체를 찍어서 AI에게 풀라고 하고 답을 베낀다.", "score": 0 }, { "text": "AI의 풀이 과정을 쓱 훑어보고 이해한 척 넘어간다.", "score": 0 }, { "text": "AI의 풀이를 보고 이해가 안 가는 부분만 다시 물어본다.", "score": 0 }, { "text": "“답을 알려주지 말고, 내가 어디서 실수했는지 힌트만 줘”라고 요청한다.", "score": 1 }, { "text": "AI와 대화하며 내가 어떤 개념을 잘못 이해하고 있었는지 깨닫고, 유사한 다른 문제를 만들어달라고 하여 내 실력을 재확인한다.", "score": 1 }] },
+            { "id": 4, "scenario": "AI가 추천해준 진로 정보가 내 생각과 다릅니다.", "options": [{ "text": "내 생각이 틀렸나 보다 하고 AI 말을 따른다.", "score": 0 }, { "text": "그냥 무시하고 내가 원래 생각했던 대로 한다.", "score": 0 }, { "text": "AI가 왜 그렇게 추천했는지 근거를 물어보고 내 생각과 비교해본다.", "score": 0 }, { "text": "내 성향과 상황을 더 구체적으로 설명하며 다시 추천해달라고 요구한다.", "score": 1 }, { "text": "AI의 추천 알고리즘 한계를 인지하고, 선생님/전문가 의견을 추가로 구한다.", "score": 1 }] },
+            { "id": 5, "scenario": "AI 그림 생성 중 원하는 결과가 안 나옵니다.", "options": [{ "text": "“이상해, 다시 해” 반복.", "score": 0 }, { "text": "포기한다.", "score": 0 }, { "text": "구체적으로 지적한다(“색감이 어두워”).", "score": 0 }, { "text": "화풍, 조명 등 전문 용어 활용.", "score": 1 }, { "text": "텍스트 묘사를 먼져 시키거나 레퍼런스 이미지를 제공한다.", "score": 1 }] },
+            { "id": 6, "scenario": "과제를 빨리 끝내고 남은 시간은?", "options": [{ "text": "게임한다.", "score": 0 }, { "text": "다른 과제도 빨리 해치운다.", "score": 0 }, { "text": "내용을 재검토한다.", "score": 0 }, { "text": "AI 답변 중 몰랐던 지식을 공부한다.", "score": 1 }, { "text": "AI 활용 노하우를 정리한다.", "score": 1 }] },
+            { "id": 7, "scenario": "유튜브 알고리즘 편향", "options": [{ "text": "계속 본다.", "score": 0 }, { "text": "가끔 넘긴다.", "score": 0 }, { "text": "다른 주제를 검색해본다.", "score": 0 }, { "text": "추천 이유 유추 및 기록 삭제.", "score": 1 }, { "text": "사회적 영향 토론 및 다양한 관점 탐색.", "score": 1 }] },
+            { "id": 8, "scenario": "AI가 오류 나는 코드를 짰을 때", "options": [{ "text": "화낸다.", "score": 0 }, { "text": "내가 처음부터 짠다.", "score": 0 }, { "text": "오류 메시지를 보여주고 고쳐달라고 한다.", "score": 0 }, { "text": "원인을 묻고 힌트를 주며 수정 요청.", "score": 1 }, { "text": "함수 단위로 쪼개서 테스트 케이스와 함께 요청.", "score": 1 }] },
+            { "id": 9, "scenario": "팀 프로젝트 AI 사용 여부", "options": [{ "text": "무조건 찬성.", "score": 0 }, { "text": "무조건 반대.", "score": 0 }, { "text": "단순 작업만 쓰자.", "score": 0 }, { "text": "역할 분담 명확히.", "score": 1 }, { "text": "가이드라인 정하고 검증 논의.", "score": 1 }] },
+            { "id": 10, "scenario": "AI 보고서 문장이 어색할 때", "options": [{ "text": "그냥 제출.", "score": 0 }, { "text": "지운다.", "score": 0 }, { "text": "내 말투로 고친다.", "score": 0 }, { "text": "스타일(구어체 등) 수정 요청.", "score": 1 }, { "text": "내 경험/감정 추가하여 재탄생.", "score": 1 }] },
+            { "id": 11, "scenario": "AI 모델 업데이트로 답변 변화", "options": [{ "text": "안 쓴다.", "score": 0 }, { "text": "똑같은 질문 반복.", "score": 0 }, { "text": "검색해서 특징 확인.", "score": 0 }, { "text": "프롬프트 바꿔가며 테스트.", "score": 1 }, { "text": "시스템 프롬프트 강화.", "score": 1 }] },
+            { "id": 12, "scenario": "AI가 나보다 똑똑해 보일 때", "options": [{ "text": "위축됨.", "score": 0 }, { "text": "꺼버림.", "score": 0 }, { "text": "데이터 덩어리일 뿐이라 생각.", "score": 0 }, { "text": "역량 차이(검색 vs 판단) 구분.", "score": 1 }, { "text": "도구로 인식하고 활용 전략 수립.", "score": 1 }] },
+            { "id": 13, "scenario": "AI의 편향적 발언", "options": [{ "text": "동조함.", "score": 0 }, { "text": "무시함.", "score": 0 }, { "text": "다른 자료 찾아봄.", "score": 0 }, { "text": "편향 지적 및 중립 요청.", "score": 1 }, { "text": "사례 저장 및 데이터 윤리 고찰.", "score": 1 }] },
+            { "id": 14, "scenario": "반복되는 플래너 생성 요청", "options": [{ "text": "매번 새로 입력.", "score": 0 }, { "text": "복붙 후 수정.", "score": 0 }, { "text": "프롬프트 저장.", "score": 0 }, { "text": "변수 활용한 템플릿화.", "score": 1 }, { "text": "규칙(Custom Instruction) 학습.", "score": 1 }] },
+            { "id": 15, "scenario": "내 글에 대한 AI 혹평", "options": [{ "text": "지워버림.", "score": 0 }, { "text": "무시함.", "score": 0 }, { "text": "구체적 지적 질문.", "score": 0 }, { "text": "평가 기준 역질문 및 의도 설명.", "score": 1 }, { "text": "수정 예시 요청 및 전후 비교.", "score": 1 }] },
+            { "id": 16, "scenario": "AI의 쉬운 과학 설명", "options": [{ "text": "그게 전부인 줄 암.", "score": 0 }, { "text": "그냥 외움.", "score": 0 }, { "text": "교과서와 비교.", "score": 0 }, { "text": "생략된 부분 질문.", "score": 1 }, { "text": "심화 설명 요구로 확장.", "score": 1 }] },
+            { "id": 17, "scenario": "축하 메시지 아이디어", "options": [{ "text": "그냥 써달라 함.", "score": 0 }, { "text": "대충 씀.", "score": 0 }, { "text": "3개 추천해줘.", "score": 0 }, { "text": "특징/관계 설명 후 요청.", "score": 1 }, { "text": "초안 보고 핑퐁 대화로 수정.", "score": 1 }] },
+            { "id": 18, "scenario": "AI 코딩 과제", "options": [{ "text": "복붙 제출.", "score": 0 }, { "text": "돌아가는지 확인.", "score": 0 }, { "text": "주석 달며 해석.", "score": 0 }, { "text": "로직 기억해 다시 짜보기.", "score": 1 }, { "text": "효율성 개선 질문 및 비교.", "score": 1 }] },
+            { "id": 19, "scenario": "지구 평면설 옹호", "options": [{ "text": "혼란.", "score": 0 }, { "text": "무시.", "score": 0 }, { "text": "팩트 체크.", "score": 0 }, { "text": "반박 근거 요구(챌린지).", "score": 1 }, { "text": "가짜 정보 생성 사례로 활용.", "score": 1 }] },
+            { "id": 20, "scenario": "PPT 목차", "options": [{ "text": "목차 짜줘.", "score": 0 }, { "text": "주제 넣고 요청.", "score": 0 }, { "text": "상황 변수 명시.", "score": 0 }, { "text": "키워드/이미지 추천 포함.", "score": 1 }, { "text": "마크다운 등 출력 형식 지정.", "score": 1 }] }
+        ];
+
+        // --- Auth & Data Logic ---
+        let auth;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof firebase !== 'undefined') {
+                auth = firebase.auth();
+
+                auth.onAuthStateChanged((user) => {
+                    if (user) {
+                        document.getElementById('auth-overlay').classList.add('hidden');
+                        document.getElementById('dashboard').classList.remove('hidden');
+                        fetchData();
+                    } else {
+                        document.getElementById('auth-overlay').classList.remove('hidden');
+                        document.getElementById('dashboard').classList.add('hidden');
+                    }
+                });
+            }
+        });
+
+        async function adminLogin() {
+            const email = document.getElementById('admin-email').value;
+            const pw = document.getElementById('admin-password').value;
+
+            if (!email || !pw) {
+                alert("이메일과 비밀번호를 입력해주세요.");
+                return;
+            }
+
+            try {
+                await auth.signInWithEmailAndPassword(email, pw);
+            } catch (error) {
+                alert("로그인 실패: " + error.message);
+                console.error(error);
+            }
+        }
+
+        async function adminSignup() {
+            const email = document.getElementById('admin-email').value;
+            const pw = document.getElementById('admin-password').value;
+
+            if (!email || !pw) {
+                alert("가입할 이메일과 비밀번호를 입력해주세요.");
+                return;
+            }
+
+            if (confirm(`현재 입력하신 정보(${email})로 관리자 계정을 생성하시겠습니까?\n\n주의: Firebase Console에서 'Email/Password' 인증 방식이 활성화되어 있어야 합니다.`)) {
+                try {
+                    await auth.createUserWithEmailAndPassword(email, pw);
+                    alert("계정이 성공적으로 생성되었습니다! 이제 자동으로 로그인됩니다.");
+                } catch (error) {
+                    alert("계정 생성 실패: " + error.message);
+                    console.error(error);
+                }
+            }
+        }
+
+        async function adminLogout() {
+            try {
+                await auth.signOut();
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        let allResults = [];
+        let filteredResults = [];
+
+        async function fetchData() {
+            if (typeof db === 'undefined') return;
+
+            try {
+                // Try to fetch with timestamp ordering, but fallback if index is missing or doesn't exist
+                let snapshot;
+                try {
+                    snapshot = await db.collection('results').orderBy('timestamp', 'desc').get();
+                } catch (err) {
+                    console.warn("Timestamp ordering failed, fetching without order:", err);
+                    snapshot = await db.collection('results').get();
+                }
+
+                allResults = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    data.id = doc.id; // Store Doc ID for deletion
+                    // Ensure timestamp is a Date object even if coming from different formats
+                    if (data.timestamp && data.timestamp.toDate) {
+                        data.rDate = data.timestamp.toDate();
+                    } else if (data.timestamp) {
+                        data.rDate = new Date(data.timestamp);
+                    } else {
+                        data.rDate = new Date(0); // Fallback for old data
+                    }
+                    return data;
+                });
+
+                applyFilters();
+            } catch (e) {
+                console.error("Error fetching data:", e);
+                // Only alert if it's a real failure (not just a missing order)
+                if (allResults.length === 0) {
+                    alert("데이터를 서버에서 가져오는데 문제가 발생했습니다. (권한 또는 네트워크 확인)");
+                }
+            }
+        }
+
+        async function deleteSelected() {
+            const checkboxes = document.querySelectorAll('.student-checkbox:checked');
+            if (checkboxes.length === 0) return;
+
+            if (!confirm(`선택한 ${checkboxes.length}개의 데이터를 삭제하시겠습니까?`)) return;
+
+            try {
+                const batch = db.batch();
+                checkboxes.forEach(cb => {
+                    const docId = cb.getAttribute('data-id');
+                    batch.delete(db.collection('results').doc(docId));
+                });
+                await batch.commit();
+                alert("선택한 데이터가 삭제되었습니다.");
+                fetchData();
+            } catch (e) {
+                console.error("Delete error:", e);
+                alert("데이터 삭제 중 오류가 발생했습니다.");
+            }
+        }
+
+        function toggleSelectAll() {
+            const isChecked = document.getElementById('select-all').checked;
+            document.querySelectorAll('.student-checkbox').forEach(cb => {
+                cb.checked = isChecked;
+            });
+            updateDeleteButtonVisibility();
+        }
+
+        function updateDeleteButtonVisibility() {
+            const checkedCount = document.querySelectorAll('.student-checkbox:checked').length;
+            const btn = document.getElementById('delete-selected-btn');
+            if (checkedCount > 0) {
+                btn.classList.remove('hidden');
+                btn.innerText = `${checkedCount}개 항목 삭제`;
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        async function resetData() {
+            if (!confirm("⚠️ 정말로 모든 학생 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.")) return;
+            if (!confirm("다시 한번 확인합니다. 전체 결과 데이터가 서버에서 영구적으로 삭제됩니다. 계속하시겠습니까?")) return;
+
+            try {
+                const snapshot = await db.collection('results').get();
+                const batch = db.batch();
+                snapshot.docs.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                alert("모든 데이터가 삭제되었습니다.");
+                fetchData();
+            } catch (e) {
+                console.error("Error resetting data:", e);
+                alert("데이터 삭제 중 오류가 발생했습니다: " + e.message + "\n(Firestore 보안 규칙에서 삭제 권한이 있는지 확인해주세요)");
+            }
+        }
+
+        function applyFilters() {
+            const gradeFilter = document.getElementById('filter-grade').value;
+            const classFilter = document.getElementById('filter-class').value;
+            const periodFilter = document.getElementById('filter-period').value;
+
+            const now = new Date();
+            let cutoffDate = null;
+            if (periodFilter !== 'all') {
+                cutoffDate = new Date();
+                cutoffDate.setDate(now.getDate() - parseInt(periodFilter));
+            }
+
+            filteredResults = allResults.filter(r => {
+                if (gradeFilter !== 'all' && r.grade !== gradeFilter) return false;
+                if (classFilter !== 'all' && r.class !== classFilter) return false;
+
+                if (cutoffDate) {
+                    if (r.rDate < cutoffDate) return false;
+                }
+                return true;
+            });
+
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('count-display').innerText = filteredResults.length;
+
+            if (filteredResults.length === 0) {
+                document.getElementById('stat-avg-score').innerText = "0";
+                document.getElementById('stat-weak-cat').innerText = "-";
+                document.getElementById('stat-top-level').innerText = "0%";
+
+                // Clear charts
+                if (levelChartInstance) levelChartInstance.destroy();
+                if (weaknessChartInstance) weaknessChartInstance.destroy();
+                if (comparisonChartInstance) comparisonChartInstance.destroy();
+                document.getElementById('details-table-body').innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400">조건에 맞는 데이터가 없습니다.</td></tr>';
+                return;
+            }
+
+            // 1. Avg Score
+            const totalScoreSum = filteredResults.reduce((acc, curr) => acc + (curr.totalScore || 0), 0);
+            const avgScore = (totalScoreSum / filteredResults.length).toFixed(1);
+            document.getElementById('stat-avg-score').innerText = avgScore;
+
+            // 2. Weakest Category
+            // Aggregate category scores
+            const catTotals = {};
+            const catCounts = {}; // How many questions per category total
+            // Usually categoryScores structure: { "CatName": { score: X, total: Y } } in each result
+
+            filteredResults.forEach(r => {
+                if (r.categoryScores) {
+                    Object.entries(r.categoryScores).forEach(([cat, data]) => {
+                        if (!catTotals[cat]) { catTotals[cat] = 0; catCounts[cat] = 0; }
+                        catTotals[cat] += data.score;
+                        catCounts[cat] += data.total;
+                    });
+                }
+            });
+
+            let minAcc = 200; // Initialize higher than 100
+            let weakCat = "-";
+            Object.entries(catTotals).forEach(([cat, score]) => {
+                const totalPossible = catCounts[cat];
+                if (totalPossible > 0) {
+                    const acc = (score / totalPossible) * 100;
+                    if (acc < minAcc) {
+                        minAcc = acc;
+                        weakCat = cat;
+                    }
+                }
+            });
+            // Fallback if no category data
+            if (minAcc === 200) minAcc = 0;
+            const CAT_MAP = {
+                "Critical_Thinking": "비판적 사고",
+                "Prompt_Engineering": "프롬프트 엔지니어링",
+                "Meta_Cognition": "메타인지"
+            };
+            document.getElementById('stat-weak-cat').innerText = CAT_MAP[weakCat] || weakCat;
+
+
+            // 3. Top Level %
+            const topLevelCount = filteredResults.filter(r => r.totalScore >= 16).length; // Level 5 is usually >80% (16/20)
+            const topLevelPct = ((topLevelCount / filteredResults.length) * 100).toFixed(1);
+            document.getElementById('stat-top-level').innerText = topLevelPct + "%";
+
+
+            updateDeltas();
+
+            // --- Charts ---
+            try { renderLevelChart(); } catch (e) { console.error("Level chart error:", e); }
+            try { renderWeaknessChart(); } catch (e) { console.error("Weakness chart error:", e); }
+            try { renderComparisonChart(); } catch (e) { console.error("Comparison chart error:", e); }
+            try { renderTrendChart(); } catch (e) { console.error("Trend chart error:", e); }
+            try { renderStudentTable(); } catch (e) { console.error("Student table error:", e); }
+            try { renderDetailsTable(); } catch (e) { console.error("Table rendering error:", e); }
+        }
+
+        function renderStudentTable() {
+            const tbody = document.getElementById('student-table-body');
+            tbody.innerHTML = '';
+
+            // Re-sort current filtered results by date DESC
+            const sortedResults = [...filteredResults].sort((a, b) => b.rDate - a.rDate);
+
+            sortedResults.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = "bg-white border-b hover:bg-gray-50";
+                tr.innerHTML = `
+                    <td class="px-6 py-4">
+                        <input type="checkbox" class="student-checkbox" data-id="${r.id}" onchange="updateDeleteButtonVisibility()">
+                    </td>
+                    <td class="px-6 py-4 font-medium text-gray-900">${r.grade}학년 ${r.class}반</td>
+                    <td class="px-6 py-4">${r.totalScore}점</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs rounded-full ${r.totalScore >= 16 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
+                            ${r.levelTitle ? r.levelTitle.split('. ')[1] : '-'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-xs text-gray-500">${r.rDate.toLocaleString()}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('select-all').checked = false;
+            updateDeleteButtonVisibility();
+        }
+
+        function updateDeltas() {
+            const periodFilter = document.getElementById('filter-period').value;
+            const deltaScoreEl = document.getElementById('delta-avg-score');
+            const deltaLevelEl = document.getElementById('delta-top-level');
+
+            if (periodFilter === 'all') {
+                deltaScoreEl.innerText = "";
+                deltaLevelEl.innerText = "";
+                return;
+            }
+
+            const pDays = parseInt(periodFilter);
+            const now = new Date();
+            const currentCutoff = new Date();
+            currentCutoff.setDate(now.getDate() - pDays);
+            const previousCutoff = new Date();
+            previousCutoff.setDate(now.getDate() - (pDays * 2));
+
+            // Current metrics already calculated in filteredResults
+            const currentAvg = parseFloat(document.getElementById('stat-avg-score').innerText);
+            const currentTopPct = parseFloat(document.getElementById('stat-top-level').innerText);
+
+            // Calculate Previous Period metrics
+            const prevResults = allResults.filter(r => r.rDate >= previousCutoff && r.rDate < currentCutoff);
+
+            if (prevResults.length === 0) {
+                deltaScoreEl.innerText = "New";
+                deltaScoreEl.className = "text-xs font-bold text-gray-400";
+                deltaLevelEl.innerText = "";
+                return;
+            }
+
+            const prevAvg = prevResults.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / prevResults.length;
+            const prevTopCount = prevResults.filter(r => r.totalScore >= 16).length;
+            const prevTopPct = (prevTopCount / prevResults.length) * 100;
+
+            const scoreDiff = (currentAvg - prevAvg).toFixed(1);
+            const topDiff = (currentTopPct - prevTopPct).toFixed(1);
+
+            formatDelta(deltaScoreEl, scoreDiff, "pts");
+            formatDelta(deltaLevelEl, topDiff, "%");
+        }
+
+        function formatDelta(el, diff, unit) {
+            const d = parseFloat(diff);
+            if (d > 0) {
+                el.innerText = `↑ ${d}${unit}`;
+                el.className = "text-xs font-bold text-green-500";
+            } else if (d < 0) {
+                el.innerText = `↓ ${Math.abs(d)}${unit}`;
+                el.className = "text-xs font-bold text-red-500";
+            } else {
+                el.innerText = "-";
+                el.className = "text-xs font-bold text-gray-400";
+            }
+        }
+
+        // ... Chart implementations ...
+        let levelChartInstance = null;
+        function renderLevelChart() {
+            const ctx = document.getElementById('levelChart').getContext('2d');
+
+            const counts = [0, 0, 0, 0, 0]; // L1 to L5
+            filteredResults.forEach(r => {
+                // Simple deduction from score if levelTitle not reliable or want to recalculate
+                const acc = (r.totalScore / 20) * 100;
+                let idx = 0;
+                if (acc <= 20) idx = 0;
+                else if (acc <= 40) idx = 1;
+                else if (acc <= 60) idx = 2;
+                else if (acc <= 80) idx = 3;
+                else idx = 4;
+                counts[idx]++;
+            });
+
+            if (levelChartInstance) {
+                levelChartInstance.destroy();
+                levelChartInstance = null;
+            }
+
+            if (counts.every(v => v === 0)) {
+                console.warn("No level data to render");
+                return;
+            }
+
+            levelChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['L1. 응애', 'L2. 초보', 'L3. 모범', 'L4. 베스트', 'L5. 우주급'],
+                    datasets: [{
+                        data: counts,
+                        backgroundColor: [
+                            '#f1f5f9', // Slate 100
+                            '#fef08a', // Yellow 200
+                            '#93c5fd', // Blue 300
+                            '#a5b4fc', // Indigo 300
+                            '#c084fc'  // Purple 400
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 15
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: { size: 11 }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        let comparisonChartInstance = null;
+        function renderComparisonChart() {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            const gradeFilter = document.getElementById('filter-grade').value;
+            const classFilter = document.getElementById('filter-class').value;
+            const labelEl = document.getElementById('comparison-label');
+
+            let labels = [];
+            let data = [];
+            let chartLabel = "";
+
+            // IMPORTANT: Comparison chart should also respect the PERIOD filter
+            const periodFilter = document.getElementById('filter-period').value;
+            const now = new Date();
+            let cutoffDate = null;
+            if (periodFilter !== 'all') {
+                cutoffDate = new Date();
+                cutoffDate.setDate(now.getDate() - parseInt(periodFilter));
+            }
+
+            const activeResults = allResults.filter(r => {
+                if (!cutoffDate) return true;
+                return r.rDate >= cutoffDate;
+            });
+
+            if (gradeFilter === 'all') {
+                // Scenario 1: Compare by Grade
+                labelEl.innerText = "학년별 평균 비교 (기간 내)";
+                chartLabel = "학년별 평균 점수";
+                labels = ['1학년', '2학년', '3학년'];
+                data = labels.map(gName => {
+                    const gVal = gName.charAt(0);
+                    const group = activeResults.filter(r => r.grade === gVal);
+                    if (group.length === 0) return 0;
+                    return (group.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / group.length).toFixed(1);
+                });
+            } else if (classFilter === 'all') {
+                // Scenario 2: Compare by Class in Selected Grade
+                labelEl.innerText = `${gradeFilter}학년 반별 평균 비교 (기간 내)`;
+                chartLabel = "반별 평균 점수";
+                for (let i = 1; i <= 15; i++) { // Increased to 15 just in case
+                    const group = activeResults.filter(r => r.grade === gradeFilter && r.class === String(i));
+                    if (group.length > 0) {
+                        labels.push(`${i}반`);
+                        data.push((group.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / group.length).toFixed(1));
+                    }
+                }
+            } else {
+                // Scenario 3: Compare Selected Class vs Others (or Grade Ave)
+                labelEl.innerText = `${gradeFilter}학년 ${classFilter}반 vs 벤치마크 (기간 내)`;
+                chartLabel = "평균 점수 비교";
+                labels = [`${gradeFilter}-${classFilter}반`, `${gradeFilter}학년 전체`, '전체 평균'];
+
+                // Class Ave
+                const classGroup = activeResults.filter(r => r.grade === gradeFilter && r.class === classFilter);
+                const classAve = classGroup.length > 0 ? (classGroup.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / classGroup.length) : 0;
+
+                // Grade Ave
+                const gradeGroup = activeResults.filter(r => r.grade === gradeFilter);
+                const gradeAve = gradeGroup.length > 0 ? (gradeGroup.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / gradeGroup.length) : 0;
+
+                // Total Ave
+                const totalAve = activeResults.length > 0 ? (activeResults.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / activeResults.length) : 0;
+
+                data = [classAve.toFixed(1), gradeAve.toFixed(1), totalAve.toFixed(1)];
+            }
+
+            if (comparisonChartInstance) {
+                comparisonChartInstance.destroy();
+                comparisonChartInstance = null;
+            }
+
+            if (data.length === 0 || data.every(v => v == 0)) {
+                console.warn("No comparison data to render");
+                return;
+            }
+
+            comparisonChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: chartLabel,
+                        data: data,
+                        backgroundColor: data.map((v, i) => {
+                            if (gradeFilter !== 'all' && classFilter !== 'all' && i === 0) return '#6366f1'; // Highlight selected class
+                            return '#e2e8f0';
+                        }),
+                        borderRadius: 8,
+                        barThickness: gradeFilter === 'all' || (gradeFilter !== 'all' && classFilter !== 'all') ? 60 : undefined
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 20,
+                            ticks: { stepSize: 5 }
+                        }
+                    }
+                }
+            });
+        }
+
+        let trendChartInstance = null;
+        function renderTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            const periodFilter = document.getElementById('filter-period').value;
+
+            if (periodFilter === 'all') {
+                if (trendChartInstance) trendChartInstance.destroy();
+                return;
+            }
+
+            const pDays = parseInt(periodFilter);
+            const now = new Date();
+            const currentCutoff = new Date();
+            currentCutoff.setDate(now.getDate() - pDays);
+            const previousCutoff = new Date();
+            previousCutoff.setDate(now.getDate() - (pDays * 2));
+
+            const currentGroup = filteredResults;
+            const prevGroup = allResults.filter(r => r.rDate >= previousCutoff && r.rDate < currentCutoff);
+
+            const CAT_MAP = {
+                "Critical_Thinking": "비판적 사고",
+                "Prompt_Engineering": "프롬프트",
+                "Meta_Cognition": "메타인지"
+            };
+
+            const labels = Object.values(CAT_MAP);
+            const currentData = [];
+            const prevData = [];
+
+            Object.keys(CAT_MAP).forEach(cat => {
+                // Current Avg for Cat
+                let cSum = 0, cCount = 0;
+                currentGroup.forEach(r => {
+                    if (r.categoryScores && r.categoryScores[cat]) {
+                        cSum += r.categoryScores[cat].score;
+                        cCount += r.categoryScores[cat].total;
+                    }
+                });
+                currentData.push(cCount > 0 ? (cSum / cCount * 100).toFixed(1) : 0);
+
+                // Prev Avg for Cat
+                let pSum = 0, pCount = 0;
+                prevGroup.forEach(r => {
+                    if (r.categoryScores && r.categoryScores[cat]) {
+                        pSum += r.categoryScores[cat].score;
+                        pCount += r.categoryScores[cat].total;
+                    }
+                });
+                prevData.push(pCount > 0 ? (pSum / pCount * 100).toFixed(1) : 0);
+            });
+
+            if (trendChartInstance) trendChartInstance.destroy();
+
+            trendChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '이전 기간 (%)',
+                            data: prevData,
+                            backgroundColor: '#e2e8f0',
+                            borderRadius: 4
+                        },
+                        {
+                            label: '현재 기간 (%)',
+                            data: currentData,
+                            backgroundColor: '#6366f1',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    }
+                }
+            });
+        }
+
+        let weaknessChartInstance = null;
+        function renderWeaknessChart() {
+            const labels = [];
+            const dataCounts = [];
+
+            // Base the labels and data on QUESTIONS_DATA for robustness
+            QUESTIONS_DATA.forEach(q => {
+                labels.push(`Q${q.id}`);
+
+                let correct = 0;
+                let total = 0;
+
+                filteredResults.forEach(r => {
+                    const detail = r.details ? r.details.find(d => d.qId === q.id) : null;
+                    if (detail) {
+                        total++;
+                        if (detail.score > 0) correct++;
+                    }
+                });
+
+                const acc = total > 0 ? (correct / total) * 100 : 0;
+                dataCounts.push(acc.toFixed(1));
+            });
+
+            const ctx = document.getElementById('weaknessChart').getContext('2d');
+            if (weaknessChartInstance) {
+                weaknessChartInstance.destroy();
+                weaknessChartInstance = null;
+            }
+
+            if (labels.length === 0) {
+                console.warn("No weakness data to render");
+                return;
+            }
+
+            weaknessChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '정답률 (%)',
+                        data: dataCounts,
+                        backgroundColor: dataCounts.map(v => v < 50 ? '#F87171' : '#34D399'),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    scales: { y: { beginAtZero: true, max: 100 } },
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        function renderDetailsTable() {
+            const tbody = document.getElementById('details-table-body');
+            tbody.innerHTML = '';
+
+            // Analyze each Question
+            QUESTIONS_DATA.forEach(q => {
+                // Filter results for this question
+                let correctCount = 0;
+                let totalCount = 0;
+                const answerCounts = {}; // text -> count
+
+                filteredResults.forEach(r => {
+                    const detail = r.details ? r.details.find(d => d.qId === q.id) : null;
+                    if (detail) {
+                        totalCount++;
+                        if (detail.score > 0) correctCount++;
+                        answerCounts[detail.userAnswer] = (answerCounts[detail.userAnswer] || 0) + 1;
+                    }
+                });
+
+                if (totalCount === 0) return; // Skip if no data
+
+                const accuracy = (correctCount / totalCount) * 100;
+
+                // Find Most Frequent Wrong Answer
+                let topWrongText = "-";
+                let topWrongCount = -1;
+
+                // Also find Most Frequent Correct Answer (Better vs Good?)
+                let topCorrectText = "-";
+                let topCorrectCount = -1;
+
+                q.options.forEach(opt => {
+                    const count = answerCounts[opt.text] || 0;
+                    if (opt.score === 0) {
+                        if (count > topWrongCount) { topWrongCount = count; topWrongText = opt.text; }
+                    } else {
+                        if (count > topCorrectCount) { topCorrectCount = count; topCorrectText = opt.text; }
+                    }
+                });
+
+                // Formatting
+                const wrongPct = topWrongCount > 0 ? `(${Math.round((topWrongCount / totalCount) * 100)}%)` : "";
+
+                const tr = `
+                    <tr class="bg-white border-b hover:bg-gray-50 text-sm">
+                        <td class="px-6 py-4 font-bold text-gray-900 border-r">Q${q.id}</td>
+                        <td class="px-6 py-4 max-w-sm">
+                            <div class="truncate font-medium text-gray-800" title="${q.scenario}">${q.scenario}</div>
+                            <div class="text-xs text-gray-400 mt-1">${q.category}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <span class="${accuracy < 60 ? 'text-red-600' : 'text-green-600'} font-bold text-lg mr-2">${Math.round(accuracy)}%</span>
+                                <div class="w-24 bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+                                    <div class="${accuracy < 60 ? 'bg-red-500' : 'bg-green-500'} h-1.5 rounded-full" style="width: ${accuracy}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-xs">
+                             ${topWrongCount > 0
+                        ? `<span class="text-red-500 font-bold">오답:</span> ${topWrongText.substring(0, 30)}... ${wrongPct}`
+                        : `<span class="text-gray-300">오답 없음</span>`
+                    }
+                             <br>
+                             ${topCorrectCount > 0
+                        ? `<span class="text-indigo-500 font-bold mt-1 inline-block">주요 정답:</span> ${topCorrectText.substring(0, 30)}...`
+                        : ""
+                    }
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += tr;
+            });
+        }
+
+        async function generateAIInsight() {
+            if (filteredResults.length === 0) {
+                alert("데이터가 없습니다.");
+                return;
+            }
+
+            // 1. Show Modal
+            const modal = document.getElementById('ai-modal');
+            const content = document.getElementById('ai-content');
+            modal.classList.remove('hidden');
+            // Show Loading State
+            content.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-12 text-gray-400">
+                    <svg class="animate-spin h-8 w-8 text-indigo-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p>학생 데이터를 분석하여 맞춤형 수업 팁을 생성 중입니다...</p>
+                    <p class="text-xs mt-2 text-indigo-400">약 5~10초 소요됩니다.</p>
+                </div>
+            `;
+
+            // 2. Prepare Data
+            const avgScore = document.getElementById('stat-avg-score').innerText;
+            const weakCategory = document.getElementById('stat-weak-cat').innerText;
+
+            // Find Weakest Question
+            let minAcc = 100;
+            let weakQ = null;
+            QUESTIONS_DATA.forEach(q => {
+                let correct = 0;
+                let total = 0;
+                filteredResults.forEach(r => {
+                    if (r.details) {
+                        const d = r.details.find(dt => dt.qId === q.id);
+                        if (d) {
+                            total++;
+                            if (d.score > 0) correct++;
+                        }
+                    }
+                });
+                if (total > 0) {
+                    const acc = (correct / total) * 100;
+                    if (acc < minAcc) {
+                        minAcc = acc;
+                        weakQ = q;
+                    }
+                }
+            });
+            const weakQuestionText = weakQ ? `Q${weakQ.id}. ${weakQ.scenario}` : "데이터 부족으로 취약 문항 분석 불가";
+
+            // 3. Call API
+            try {
+                const res = await fetch('/api/consult-gemini', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        stats: { avgScore: avgScore },
+                        weakCategory: weakCategory,
+                        weakQuestion: weakQ ? `Q${weakQ.id}` : "-",
+                        weakQuestionText: weakQuestionText
+                    })
+                });
+
+                if (!res.ok) throw new Error("API Error");
+
+                const data = await res.json();
+
+                // 4. Render Markdown
+                content.innerHTML = marked.parse(data.advice);
+
+            } catch (e) {
+                console.error(e);
+                content.innerHTML = `<div class="text-red-500 text-center p-4">분석 중 오류가 발생했습니다.<br>${e.message}</div>`;
+            }
+        }
+
+        function closeAIModal() {
+            document.getElementById('ai-modal').classList.add('hidden');
+        }
+
+    </script>
+</body>
+
+</html>

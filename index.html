@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 리터러시 진단 (AI Literacy Test)</title>
+
+    <!-- Libraries (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <!-- Firebase Config -->
+    <script src="firebaseConfig.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans KR', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#4F46E5', // Indigo 600
+                        secondary: '#10B981', // Emerald 500
+                        accent: '#8B5CF6', // Violet 500
+                        surface: '#ffffff',
+                        background: '#f3f4f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        body {
+            background-color: #F3F4F6;
+            background-image: radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: #1F2937;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .btn-primary {
+            @apply px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition duration-200 ease-in-out transform hover:-translate-y-0.5;
+        }
+
+        .btn-secondary {
+            @apply px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 focus:outline-none transition duration-200;
+        }
+
+        .option-card {
+            @apply p-4 border rounded-lg cursor-pointer hover:bg-indigo-50 border-gray-200 transition-all duration-200;
+        }
+
+        .option-card.selected {
+            @apply border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200;
+        }
+
+        /* Hide scrollbar for cleaner UI */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body class="flex items-center justify-center p-4">
+
+    <!-- Container -->
+    <main id="app-container"
+        class="glass-panel w-full max-w-4xl min-h-[600px] p-8 relative overflow-hidden flex flex-col">
+
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8 border-b pb-4 border-gray-100">
+            <div>
+                <h1
+                    class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">
+                    AI Literacy Test
+                </h1>
+                <p class="text-sm text-gray-500">AI 리터러시 진단 시스템</p>
+            </div>
+            <div class="text-xs text-gray-400 font-mono">Privacy-First: No Server</div>
+        </header>
+
+        <!-- View: Welcome -->
+        <section id="view-welcome" class="flex-1 flex flex-col justify-center items-center text-center space-y-6">
+            <div class="space-y-4">
+                <div class="flex justify-center mb-6">
+                    <!-- Main Character: Cute AI Robot -->
+                    <svg width="140" height="140" viewBox="0 0 200 200"
+                        class="hover:scale-105 transition-transform duration-300">
+                        <defs>
+                            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="3" result="blur" />
+                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                        </defs>
+                        <!-- Head -->
+                        <rect x="50" y="50" width="100" height="90" rx="20" fill="#ffffff" stroke="#4F46E5"
+                            stroke-width="4" />
+                        <!-- Screen/Face -->
+                        <rect x="60" y="70" width="80" height="50" rx="10" fill="#E0E7FF" />
+                        <!-- Eyes -->
+                        <circle cx="85" cy="95" r="6" fill="#1F2937">
+                            <animate attributeName="ry" values="6;0.5;6" dur="3s" repeatCount="indefinite" />
+                        </circle>
+                        <circle cx="115" cy="95" r="6" fill="#1F2937">
+                            <animate attributeName="ry" values="6;0.5;6" dur="3s" repeatCount="indefinite" />
+                        </circle>
+                        <!-- Mouth -->
+                        <path d="M 95 105 Q 100 110 105 105" stroke="#4F46E5" stroke-width="2" fill="none"
+                            stroke-linecap="round" />
+                        <!-- Antenna -->
+                        <line x1="100" y1="50" x2="100" y2="30" stroke="#4F46E5" stroke-width="4" />
+                        <circle cx="100" cy="25" r="8" fill="#F59E0B" filter="url(#glow)">
+                            <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite" />
+                        </circle>
+                        <!-- Hands (Waving) -->
+                        <path d="M 45 110 Q 30 100 35 80" stroke="#4F46E5" stroke-width="4" fill="none"
+                            stroke-linecap="round" />
+                        <path d="M 155 110 Q 170 100 165 80" stroke="#4F46E5" stroke-width="4" fill="none"
+                            stroke-linecap="round" />
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-800 break-keep">나의 AI 리터러시(AI Literacy) 진단</h2>
+                <div
+                    class="text-indigo-600 font-medium text-sm bg-indigo-50 inline-block px-4 py-1.5 rounded-full mb-2">
+                    ✨ 석리송 선생님 & AI와 함께하는 성장 여행
+                </div>
+                <p class="text-gray-600 max-w-md mx-auto break-keep leading-relaxed mb-4">
+                    AI와 함께할 때, 당신은 <b>드라이버</b>인가요? <b>승객</b>인가요?<br>
+                    귀여운 AI 코치와 함께 <b>20가지 상황</b>을 진단해보세요!
+                </p>
+
+                <!-- Student Info Inputs (Anonymous for Privacy) -->
+                <div
+                    class="grid grid-cols-2 gap-4 max-w-sm mx-auto bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">학년</label>
+                        <select id="input-grade"
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <option value="1">1학년</option>
+                            <option value="2">2학년</option>
+                            <option value="3">3학년</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">반</label>
+                        <select id="input-class"
+                            class="w-full p-2 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <option value="1">1반</option>
+                            <option value="2">2반</option>
+                            <option value="3">3반</option>
+                            <option value="4">4반</option>
+                            <option value="5">5반</option>
+                            <option value="6">6반</option>
+                            <option value="7">7반</option>
+                            <option value="8">8반</option>
+                            <option value="9">9반</option>
+                            <option value="10">10반</option>
+                            <option value="11">11반</option>
+                            <option value="12">12반</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Privacy Notice -->
+                <p class="text-xs text-gray-400 mb-6 text-center">
+                    * 입력하신 정보는 <strong>선생님께 제출하여 피드백</strong>을 받기 위한 용도로만 사용됩니다.
+                </p>
+            </div>
+
+            <button id="btn-start"
+                class="bg-indigo-600 text-white text-xl font-bold px-12 py-4 rounded-xl shadow-xl hover:bg-indigo-700 hover:scale-105 transition-all flex items-center gap-3">
+                <span>진단 시작하기</span>
+                <span class="text-2xl">🚀</span>
+            </button>
+        </section>
+
+        <!-- View: Assessment -->
+        <section id="view-assessment" class="hidden flex-1 flex flex-col">
+            <!-- Progress -->
+            <div class="mb-6">
+                <div class="flex justify-between text-sm text-gray-500 mb-1 font-mono">
+                    <span id="progress-text">1 / 20</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-500 ease-out"
+                        style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Question Card -->
+            <div id="question-container" class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                <span id="q-category"
+                    class="inline-block px-3 py-1 text-xs font-bold text-indigo-600 bg-indigo-100 rounded-full mb-3 tracking-wide">Category</span>
+                <h3 id="q-scenario" class="text-xl font-bold text-gray-800 mb-6 leading-relaxed keep-all">
+                    Scenario text...
+                </h3>
+
+                <div id="q-options" class="space-y-3">
+                    <!-- Options -->
+                </div>
+            </div>
+
+            <!-- Navigation (Next removed) -->
+            <div class="mt-6 pt-4 border-t border-gray-100 flex justify-between">
+                <button id="btn-prev" class="btn-secondary hidden hover:bg-gray-300">이전</button>
+            </div>
+        </section>
+
+        <!-- View: Results -->
+        <section id="view-result" class="hidden flex-1 flex flex-col overflow-y-auto custom-scrollbar">
+            <div id="result-content" class="bg-white p-8 rounded-xl"> <!-- White bg for capture -->
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-1">AI 리터러시 진단 리포트</h2>
+                    <p class="text-gray-400 text-xs tracking-wider">AI LITERACY TEST REPORT</p>
+                    <div id="report-student-info"
+                        class="mt-4 hidden bg-gray-100 px-4 py-2 rounded-lg text-sm font-bold text-gray-700">
+                        <!-- Injected Info just for PDF -->
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center mb-10">
+                    <!-- Character Container -->
+                    <div id="level-character" class="mb-4 transform hover:scale-110 transition-transform duration-300">
+                        <!-- SVG Injected here -->
+                    </div>
+
+                    <span id="level-badge"
+                        class="px-4 py-1.5 text-base font-bold text-white bg-indigo-500 rounded-full shadow-lg mb-4">
+                        Level Analysis
+                    </span>
+
+                    <h1 id="level-title" class="text-3xl font-extrabold text-gray-900 mb-2">
+                        당신의 레벨은?
+                    </h1>
+
+                    <p id="total-feedback"
+                        class="text-center text-gray-600 leading-relaxed max-w-2xl bg-gray-50 p-6 rounded-xl border border-gray-100">
+                        분석 중...
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                    <!-- Scores -->
+                    <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100 flex flex-col justify-center">
+                        <h4 class="font-bold text-indigo-900 mb-4 border-b border-indigo-200 pb-2">📊 역량 점수 (Score)</h4>
+                        <div class="flex items-end gap-2 mb-2">
+                            <span id="total-score" class="text-5xl font-extrabold text-indigo-600">0</span>
+                            <span class="text-lg text-gray-400 mb-2">/ <span id="max-score">20</span></span>
+                        </div>
+                        <p class="text-xs text-indigo-400">총 20개 문항 중 능동적(정답) 행동 수</p>
+                    </div>
+
+                    <!-- Radar Chart -->
+                    <div
+                        class="bg-white p-2 rounded-xl border border-gray-200 shadow-sm flex items-center justify-center h-64">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Detailed Breakdown & Personalized Feedback -->
+                <div class="space-y-8">
+                    <div>
+                        <h3
+                            class="text-lg font-bold text-gray-800 border-b-2 border-gray-100 pb-2 mb-4 flex items-center">
+                            <span class="bg-indigo-100 p-1 rounded mr-2">📈</span> 영역별 세부 분석
+                        </h3>
+                        <div id="category-details" class="grid gap-3">
+                            <!-- Injected -->
+                        </div>
+                    </div>
+
+                    <div class="bg-orange-50 rounded-xl p-6 border border-orange-100">
+                        <h3 class="text-lg font-bold text-orange-900 mb-2 flex items-center">
+                            <span class="mr-2 text-2xl">📝</span> AI 활용 오답 노트
+                        </h3>
+                        <p class="text-sm text-orange-700/80 mb-6">
+                            "틀린 문제가 아니라, <b class="text-orange-800">더 성장할 수 있는 기회</b>입니다."<br>
+                            AI 코치가 당신의 선택을 분석하여 구체적인 가이드를 제공합니다.
+                        </p>
+                        <div id="personalized-feedback" class="space-y-4">
+                            <!-- Injected -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                    <h3 class="text-lg font-bold text-indigo-900 mb-3 flex items-center">
+                        <span class="mr-2 text-2xl">👩‍🏫</span> 선생님의 총평 (General Review)
+                    </h3>
+                    <p id="general-advice" class="text-sm text-indigo-800 leading-relaxed text-left break-keep">
+                        <!-- Injected General Advice -->
+                    </p>
+                </div>
+
+                <div class="mt-12 text-center border-t border-gray-100 pt-8 text-gray-300 text-xs">
+                    Designed by AI & Teacher Collaboration
+                </div>
+            </div>
+
+            <!-- Export Actions -->
+            <div data-html2canvas-ignore
+                class="mt-8 pt-6 border-t border-gray-100 bg-white p-6 sticky bottom-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] rounded-t-xl z-50">
+
+                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4">
+                    <p class="text-xs text-indigo-800 font-bold mb-2 flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
+                                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4">
+                                    <p class="text-xs text-indigo-800 font-bold mb-2 flex items-center">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
+                                            </path>
+                                        </svg>
+                                        선생님 제출용 리포트 생성
+                                    </p>
+                                    <p class="text-xs text-gray-600 mb-3">
+                                        리포트를 생성하여 <strong>선생님께 제출하고 피드백</strong>을 받아보세요!<br>
+                                        (입력한 정보는 제출 확인 용도로만 사용됩니다)
+                                    </p>
+                                    <div class="flex gap-2">
+                                        <input type="number" id="result-input-number" placeholder="학번(번호)"
+                                            class="w-24 p-2 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none">
+                                        <input type="text" id="result-input-name" placeholder="이름"
+                                            class="flex-grow p-2 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none">
+                                    </div>
+                                </div>
+
+                                <button id="btn-download"
+                                    class="btn-primary w-full flex items-center justify-center gap-2 shadow-lg hover:bg-indigo-700 transition-all cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    결과 리포트 저장 (PDF)
+                                </button>
+                </div>
+        </section>
+
+    </main>
+
+    <!-- Application Logic -->
+    <script>
+        // --- State ---
+        let questions = [];
+        let currentIndex = 0;
+        let answers = {};
+        let currentChart = null;
+        let studentInfo = {}; // Store info
+
+        // --- Character SVGs ---
+        const CHARACTERS = {
+            1: `<!-- Baby Driver -->
+                <svg width="150" height="150" viewBox="0 0 200 200">
+                    <circle cx="100" cy="100" r="90" fill="#F3F4F6"/>
+                    <text x="100" y="120" font-size="80" text-anchor="middle">👶</text>
+                    <text x="100" y="170" font-size="16" fill="#6B7280" text-anchor="middle" font-weight="bold">응애 드라이버</text>
+                    <!-- Steering Wheel Overlay -->
+                    <circle cx="100" cy="130" r="30" stroke="#4B5563" stroke-width="8" fill="none" opacity="0.5"/>
+                </svg>`,
+            2: `<!-- Novice -->
+                 <svg width="150" height="150" viewBox="0 0 200 200">
+                    <circle cx="100" cy="100" r="90" fill="#FEF3C7"/>
+                    <text x="100" y="120" font-size="80" text-anchor="middle">👦</text>
+                    <text x="100" y="170" font-size="16" fill="#D97706" text-anchor="middle" font-weight="bold">초보 드라이버</text>
+                </svg>`,
+            3: `<!-- Standard -->
+                 <svg width="150" height="150" viewBox="0 0 200 200">
+                    <circle cx="100" cy="100" r="90" fill="#DBEAFE"/>
+                    <text x="100" y="120" font-size="80" text-anchor="middle">🧑‍✈️</text>
+                    <text x="100" y="170" font-size="16" fill="#2563EB" text-anchor="middle" font-weight="bold">모범 드라이버</text>
+                </svg>`,
+            4: `<!-- Best -->
+                 <svg width="150" height="150" viewBox="0 0 200 200">
+                    <circle cx="100" cy="100" r="90" fill="#E0E7FF"/>
+                     <circle cx="100" cy="100" r="85" stroke="#6366F1" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+                    <text x="100" y="120" font-size="80" text-anchor="middle">🏎️</text>
+                    <text x="100" y="170" font-size="16" fill="#4F46E5" text-anchor="middle" font-weight="bold">베스트 드라이버</text>
+                </svg>`,
+            5: `<!-- Cosmic -->
+                 <svg width="150" height="150" viewBox="0 0 200 200">
+                    <defs>
+                        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#EC4899;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <circle cx="100" cy="100" r="90" fill="url(#grad1)"/>
+                    <text x="100" y="120" font-size="80" text-anchor="middle">🚀</text>
+                    <text x="100" y="170" font-size="16" fill="white" text-anchor="middle" font-weight="bold">우주급 드라이버</text>
+                    <path d="M 20 20 L 40 40 M 160 20 L 140 40 M 180 100 L 190 100" stroke="white" stroke-width="2" opacity="0.5"/>
+                </svg>`
+        };
+
+        // --- DOM Elements ---
+        const views = {
+            welcome: document.getElementById('view-welcome'),
+            assessment: document.getElementById('view-assessment'),
+            result: document.getElementById('view-result')
+        };
+
+        const CATEGORY_MAP = {
+            "Critical_Thinking": "비판적 사고",
+            "Prompt_Engineering": "프롬프트 엔지니어링",
+            "Meta_Cognition": "메타인지"
+        };
+
+        function switchView(viewName) {
+            console.log("Switching view to:", viewName);
+            for (const key in views) {
+                if (views[key]) {
+                    views[key].classList.add('hidden');
+                }
+            }
+            if (views[viewName]) {
+                views[viewName].classList.remove('hidden');
+                window.scrollTo(0, 0);
+            } else {
+                console.error("View not found:", viewName);
+            }
+        }
+        // ... (Previous Code) ...
+        const startBtn = document.getElementById('btn-start');
+        const prevBtn = document.getElementById('btn-prev');
+        // const nextBtn = document.getElementById('btn-next');
+        // ... (Keep other elements) ...
+
+        // --- Question Data (Fallback) ---
+        const FALLBACK_QUESTIONS = [
+            {
+                "id": 1,
+                "category": "Critical_Thinking",
+                "scenario": "역사 수행평가 중 AI가 '임진왜란은 1900년에 일어났다'는 엉터리 정보를 답변했습니다. 당신의 행동은?",
+                "options": [
+                    { "text": "AI가 그랬으니 맞겠지 하고 그대로 쓴다.", "score": 0, "feedback": "AI도 실수를 합니다! 팩트 체크는 필수예요." },
+                    { "text": "날짜가 좀 이상한데? 하고 그냥 그 문장을 뺀다.", "score": 0, "feedback": "의심하는 건 좋지만, 정확한 정보를 찾아보는 적극성이 필요해요." },
+                    { "text": "네이버나 교과서에서 정확한 연도를 다시 찾아본다.", "score": 0, "feedback": "좋아요! 다른 출처와 교차 검증하는 습관이 훌륭합니다." },
+                    { "text": "AI에게 '틀렸어. 1592년 아니야? 정확한 출처를 대봐'라고 지적한다.", "score": 1, "feedback": "오! AI의 오류를 지적하고 근거를 요구하는 모습, 아주 날카롭습니다!" },
+                    { "text": "교과서 내용을 찍어 올리거나 정확한 연도를 알려주며, '이 정보를 바탕으로 아까 그 답변 다시 고쳐써'라고 AI를 교정해준다.", "score": 1, "feedback": "완벽합니다! AI를 가르쳐서 더 나은 결과를 얻어내는 'AI 조련사'시군요!" }
+                ]
+            },
+            {
+                "id": 2,
+                "category": "Prompt_Engineering",
+                "scenario": "영어 에세이를 쓰려고 합니다. AI에게 첫 요청을 어떻게 보낼까요?",
+                "options": [
+                    { "text": "그냥 “영어 에세이 써줘”라고 입력한다.", "score": 0, "feedback": "너무 단순한 질문은 단순한 답변만 낳습니다. 구체적으로 말해보세요." },
+                    { "text": "“환경 오염에 관한 에세이 써줘”라고 주제만 던진다.", "score": 0, "feedback": "주제는 줬지만, 형식이나 수준을 말해주지 않으면 엉뚱한 글이 나올 수 있어요." },
+                    { "text": "“고등학생 수준으로, 서론-본론-결론 구조를 갖춰서 환경 오염 에세이를 500자 내외로 써줘”라고 구체적으로 요청한다.", "score": 0, "feedback": "아주 좋습니다! 분량, 형식, 수준을 명확히 제시했네요." },
+                    { "text": "형식과 분량 조건뿐만 아니라, “독자의 흥미를 끌 수 있는 문장으로 시작하고, 설득력 있는 근거를 2가지를 포함해줘”라고 세부 지침을 구체적으로 추가한다.", "score": 1, "feedback": "훌륭해요! 글의 구성 요소까지 디테일하게 지시하는 프롬프트 엔지니어링 실력이 뛰어납니다." },
+                    { "text": "먼저 AI에게 개요를 짜달라고 한 뒤, 그 개요를 수정보완하고, 각 문단별로 내가 원하는 톤앤매너를 지정하여 단계적으로 글을 완성해나간다.", "score": 1, "feedback": "최고예요! AI와 한 번에 끝내지 않고 단계별로 협업하며 완성도를 높이는 진정한 프로입니다." }
+                ]
+            },
+            { "id": 3, "category": "Meta_Cognition", "scenario": "수학 문제를 풀다가 막혔습니다. AI를 어떻게 활용할까요?", "options": [{ "text": "문제 전체를 찍어서 AI에게 풀라고 하고 답을 베낀다.", "score": 0, "feedback": "답만 베끼면 내 실력은 늘지 않아요. AI는 숙제 머신이 아닙니다." }, { "text": "AI의 풀이 과정을 쓱 훑어보고 이해한 척 넘어간다.", "score": 0, "feedback": "눈으로만 보고 안다고 착각하는 '메타인지 오류'를 조심하세요." }, { "text": "AI의 풀이를 보고 이해가 안 가는 부분만 다시 물어본다.", "score": 0, "feedback": "모르는 부분을 질문하는 태도, 아주 좋습니다!" }, { "text": "“답을 알려주지 말고, 내가 어디서 실수했는지 힌트만 줘”라고 요청한다.", "score": 1, "feedback": "오! 답을 바로 보지 않고 스스로 고민하려는 의지가 돋보입니다." }, { "text": "AI와 대화하며 내가 어떤 개념을 잘못 이해하고 있었는지 깨닫고, 유사한 다른 문제를 만들어달라고 하여 내 실력을 재확인한다.", "score": 1, "feedback": "완벽해요! AI를 '개인 과외 선생님'으로 활용하여 내 약점을 완벽히 보완하고 있군요." }] },
+            { "id": 4, "category": "Critical_Thinking", "scenario": "AI가 추천해준 진로 정보가 내 생각과 다릅니다.", "options": [{ "text": "내 생각이 틀렸나 보다 하고 AI 말을 따른다.", "score": 0, "feedback": "AI가 항상 정답은 아닙니다. 내 주관을 가지세요." }, { "text": "그냥 무시하고 내가 원래 생각했던 대로 한다.", "score": 0, "feedback": "AI의 의견도 하나의 참고 자료가 될 수 있어요. 무조건 무시는 아쉬워요." }, { "text": "AI가 왜 그렇게 추천했는지 근거를 물어보고 내 생각과 비교해본다.", "score": 0, "feedback": "좋습니다! 근거를 확인하고 비교하는 비판적 사고 과정입니다." }, { "text": "내 성향과 상황을 더 구체적으로 설명하며 다시 추천해달라고 요구한다.", "score": 1, "feedback": "훌륭해요! 정보가 부족해서 잘못 추천했을 수 있음을 알고, 정보를 추가로 제공했군요." }, { "text": "AI의 추천 알고리즘 한계를 인지하고, 선생님/전문가 의견을 추가로 구한다.", "score": 1, "feedback": "최고입니다! AI뿐만 아니라 인간 전문가의 의견까지 종합적으로 고려하는 균형 감각!" }] },
+            { "id": 5, "category": "Prompt_Engineering", "scenario": "AI 그림 생성 중 원하는 결과가 안 나옵니다.", "options": [{ "text": "“이상해, 다시 해” 반복.", "score": 0, "feedback": "구체적인 피드백 없이 반복만 하면 AI도 혼란스러워해요." }, { "text": "포기한다.", "score": 0, "feedback": "조금만 더 시도해보세요! 프롬프트를 바꾸면 결과도 달라집니다." }, { "text": "구체적으로 지적한다(“색감이 어두워”).", "score": 0, "feedback": "좋아요. 무엇이 문제인지 명확히 짚어주는 것이 중요합니다." }, { "text": "화풍, 조명 등 전문 용어 활용.", "score": 1, "feedback": "오, 전문 용어를 사용하니 AI가 훨씬 정확하게 알아듣겠죠?" }, { "text": "텍스트 묘사를 먼져 시키거나 레퍼런스 이미지를 제공한다.", "score": 1, "feedback": "완벽합니다! AI가 참고할 수 있는 예시를 주는 것이 가장 확실한 방법이죠." }] },
+            { "id": 6, "category": "Meta_Cognition", "scenario": "과제를 빨리 끝내고 남은 시간은?", "options": [{ "text": "게임한다.", "score": 0, "feedback": "휴식도 중요하지만, 남는 시간을 더 알차게 쓸 수 없을까요?" }, { "text": "다른 과제도 빨리 해치운다.", "score": 0, "feedback": "효율적이지만, 배운 내용을 깊이 있게 소화하는 시간도 필요해요." }, { "text": "내용을 재검토한다.", "score": 0, "feedback": "좋은 습관입니다. 실수를 줄일 수 있죠." }, { "text": "AI 답변 중 몰랐던 지식을 공부한다.", "score": 1, "feedback": "훌륭해요! AI를 통해 단순히 과제만 하는 게 아니라 지식을 확장하고 있군요." }, { "text": "AI 활용 노하우를 정리한다.", "score": 1, "feedback": "최고입니다! '내가 어떻게 AI를 썼을 때 잘 됐지?'를 복기하며 나만의 스킬을 쌓고 계시네요." }] },
+            { "id": 7, "category": "Critical_Thinking", "scenario": "유튜브 알고리즘 추천 영상만 계속 보게 됩니다.", "options": [{ "text": "재미있으니까 계속 본다.", "score": 0, "feedback": "알고리즘의 거품(Filter Bubble)에 갇힐 수 있어요!" }, { "text": "가끔 넘긴다.", "score": 0, "feedback": "소극적인 저항이군요." }, { "text": "의식적으로 다른 주제를 검색해본다.", "score": 0, "feedback": "좋아요! 편식을 막기 위해 골고루 정보를 섭취하려는 노력이 보입니다." }, { "text": "이 영상이 왜 추천되었는지 이유를 생각보고, 시청 기록을 관리한다.", "score": 1, "feedback": "오! 알고리즘의 원리를 이해하고 주체적으로 관리하는 모습, 멋집니다." }, { "text": "편향된 정보의 위험성을 인지하고 다양한 관점의 영상을 찾아 비교 시청한다.", "score": 1, "feedback": "완벽해요! 정보의 치우침을 경계하고 균형 잡힌 시각을 유지하려는 태도가 훌륭합니다." }] },
+            { "id": 8, "category": "Prompt_Engineering", "scenario": "AI가 코드를 짰는데 오류가 납니다.", "options": [{ "text": "화내며 욕을 한다.", "score": 0, "feedback": "AI에게 화내도 문제는 해결되지 않아요..." }, { "text": "내가 처음부터 다시 짠다.", "score": 0, "feedback": "AI를 활용하려던 처음 목적이 사라졌네요. 아쉬워요." }, { "text": "오류 메시지를 그대로 보여주고 고쳐달라고 한다.", "score": 0, "feedback": "가장 기본적인 디버깅 방법입니다. 나쁘지 않아요." }, { "text": "어디가 틀린 것 같은지 짐작가는 부분을 말해주며 수정을 요청한다.", "score": 1, "feedback": "좋아요! AI에게 탐색의 단서를 제공해주면 훨씬 빨리 고칠 수 있죠." }, { "text": "기능 단위로 쪼개서 테스트하게 시키고, 단계별로 오류를 잡아나간다.", "score": 1, "feedback": "프로 개발자시군요! 문제를 분해해서 해결하는 컴퓨팅 사고력이 뛰어납니다." }] },
+            { "id": 9, "category": "Critical_Thinking", "scenario": "팀 프로젝트에 AI를 사용하자고 친구가 제안합니다.", "options": [{ "text": "무조건 찬성! 편하니까.", "score": 0, "feedback": "편리함만 추구하다간 표절 문제나 퀄리티 저하가 생길 수 있어요." }, { "text": "무조건 반대! 우리 힘으로 해야지.", "score": 0, "feedback": "AI라는 강력한 도구를 배제하는 것은 효율성 측면에서 아쉬울 수 있어요." }, { "text": "단순 자료 조사나 오타 검사만 시키자.", "score": 0, "feedback": "안전한 선택이네요. 보조 도구로 활용하는 좋은 자세입니다." }, { "text": "어떤 부분에 쓰고 어떤 부분은 사람이 할지 역할을 명확히 나누자.", "score": 1, "feedback": "현명합니다! AI와 인간의 R&R(역할)을 구분하는 협업의 정석입니다." }, { "text": "사용 가이드라인을 먼저 정하고, AI 결과물을 우리가 팩트체크할 방법을 논의한다.", "score": 1, "feedback": "최고예요! AI 활용의 부작용을 미리 예방하고 책임감 있게 사용하려는 태도입니다." }] },
+            { "id": 10, "category": "Prompt_Engineering", "scenario": "AI가 써준 보고서 문장이 너무 딱딱하고 어색합니다.", "options": [{ "text": "그냥 낸다.", "score": 0, "feedback": "내 이름으로 나가는 보고서인데... 책임감이 조금 아쉬워요." }, { "text": "AI 글은 다 지우고 내가 다시 쓴다.", "score": 0, "feedback": "시간이 두 배로 들겠네요." }, { "text": "내 말투로 조금 고쳐 쓴다.", "score": 0, "feedback": "좋아요. 내 색깔을 입히는 과정이 필요하죠." }, { "text": "“좀 더 부드러운 구어체로 바꿔줘”라고 스타일 수정을 요청한다.", "score": 1, "feedback": "훌륭해요! 원하는 톤앤매너를 구체적으로 지시할 줄 아시네요." }, { "text": "내 경험이나 감정이 드러나는 문단을 추가해서 AI 글을 내 글로 재탄생시킨다.", "score": 1, "feedback": "완벽합니다! AI의 논리에 인간의 감성을 더해 세상에 하나뿐인 글을 만들었군요." }] },
+            { "id": 11, "category": "Meta_Cognition", "scenario": "AI 모델이 업데이트되면서 답변 스타일이 바뀌었습니다.", "options": [{ "text": "불편해서 안 쓴다.", "score": 0, "feedback": "변화는 피할 수 없어요. 적응하는 유연성이 필요합니다." }, { "text": "예전과 똑같이 계속 질문한다.", "score": 0, "feedback": "도구는 바뀌었는데 나는 그대로라면, 좋은 결과를 얻기 힘들겠죠?" }, { "text": "검색해서 이번 업데이트의 특징이 뭔지 찾아본다.", "score": 0, "feedback": "좋아요. 도구의 변화를 파악하려는 학습 태도가 훌륭합니다." }, { "text": "프롬프트를 조금씩 바꿔가며 어떻게 답변이 달라지는지 테스트해본다.", "score": 1, "feedback": "오! 실험 정신이 투철하시네요. 변화에 능동적으로 대처하고 있습니다." }, { "text": "바뀐 모델에 맞는 '시스템 프롬프트(역할 부여)'를 새롭게 만들어 최적화한다.", "score": 1, "feedback": "당신은 AI 마스터! 도구의 특성에 맞춰 나만의 사용법을 업그레이드할 줄 아는군요." }] },
+            { "id": 12, "category": "Meta_Cognition", "scenario": "AI가 나보다 훨씬 빠르고 똑똑해 보일 때 드는 생각은?", "options": [{ "text": "나는 이제 필요 없나... 위축된다.", "score": 0, "feedback": "AI는 도구일 뿐, 그것을 쓰는 주체는 당신입니다! 기죽지 마세요." }, { "text": "꼴 보기 싫어서 꺼버린다.", "score": 0, "feedback": "회피한다고 문제가 해결되진 않아요." }, { "text": "어차피 얘는 감정도 없는 데이터 덩어리일 뿐이라고 생각한다.", "score": 0, "feedback": "맞아요. 하지만 꽤 유용한 데이터 덩어리죠." }, { "text": "AI가 잘하는 것(정보 처리)과 내가 잘하는 것(판단, 공감)이 다름을 구분한다.", "score": 1, "feedback": "정확한 메타인지입니다! 나의 고유한 가치를 잘 알고 계시네요." }, { "text": "이 똑똑한 녀석을 내 비서로 부려서 내가 더 엄청난 성과를 내야겠다고 다짐한다.", "score": 1, "feedback": "최고의 마인드셋! AI의 능력을 나의 능력으로 흡수하려는 주도적인 태도입니다." }] },
+            { "id": 13, "category": "Critical_Thinking", "scenario": "AI가 특정 인종이나 성별에 대한 편향적인 발언을 했습니다.", "options": [{ "text": "AI 말이니 맞겠지 하고 동조한다.", "score": 0, "feedback": "위험해요! AI는 인터넷의 편견까지 학습했을 수 있습니다." }, { "text": "불쾌하지만 그냥 무시한다.", "score": 0, "feedback": "개인적으로는 피했지만, 근본적인 해결은 아니네요." }, { "text": "다른 자료를 찾아보고 사실이 아님을 확인한다.", "score": 0, "feedback": "좋아요. 팩트 체크를 통해 편향에 휩쓸리지 않았군요." }, { "text": "AI에게 “그건 편향된 시각이야. 중립적인 관점에서 다시 말해줘”라고 요구한다.", "score": 1, "feedback": "멋집니다! AI의 윤리적 문제를 지적하고 교정하려는 용기가 있습니다." }, { "text": "해당 사례를 캡처해두고, AI 윤리에 대해 친구들과 토론해본다.", "score": 1, "feedback": "완벽해요! 기술의 사회적 영향력까지 고찰하는 깊이 있는 시민 의식을 가졌네요." }] },
+            { "id": 14, "category": "Prompt_Engineering", "scenario": "매일 똑같은 학습 플래너를 짜달라고 하기 귀찮습니다.", "options": [{ "text": "어쩔 수 없이 매일 새로 입력한다.", "score": 0, "feedback": "반복 작업은 자동화하는 게 AI 활용의 핵심인데 아쉽네요." }, { "text": "어제 대화 내용을 복사해서 붙여넣고 수정한다.", "score": 0, "feedback": "조금 편해졌지만 여전히 번거롭죠." }, { "text": "잘 작동했던 프롬프트를 메모장에 저장해두고 쓴다.", "score": 0, "feedback": "좋은 습관입니다! 나만의 프롬프트 도서관을 만들고 계시군요." }, { "text": "날짜와 할 일만 바꾸면 되게끔 빈칸(변수)이 뚫린 템플릿을 만든다.", "score": 1, "feedback": "오! 프롬프트를 '프로그래밍'하듯이 구조화하셨네요. 아주 효율적입니다." }, { "text": "AI에게 '나의 학습 패턴과 선호 방식'을 미리 학습(Custom Instruction)시켜 둔다.", "score": 1, "feedback": "끝판왕입니다! AI를 나에게 딱 맞춘 '맞춤형 비서'로 커스터마이징하셨군요." }] },
+            { "id": 15, "category": "Meta_Cognition", "scenario": "내가 쓴 글을 AI에게 평가해달라고 했는데 혹평을 받았습니다.", "options": [{ "text": "기분 나빠서 지워버린다.", "score": 0, "feedback": "감정적인 대응은 성장에 도움이 안 돼요 ㅠㅠ" }, { "text": "AI가 뭘 알겠어? 무시한다.", "score": 0, "feedback": "쓴소리에도 귀를 기울일 줄 아는 포용력이 필요해요." }, { "text": "어디가 별로인지 구체적으로 찍어달라고 한다.", "score": 0, "feedback": "좋습니다. 피드백을 구체화해서 수용하려는 태도네요." }, { "text": "“어떤 기준으로 평가한 거야?”라고 평가 기준을 물어보고 내 의도를 설명한다.", "score": 1, "feedback": "훌륭해요! 평가자와의 대화를 통해 간극을 좁히고 설득하는 과정이네요." }, { "text": "수정 예시를 보여달라고 한 뒤, 원본과 비교하며 배울 점만 쏙쏙 뽑아먹는다.", "score": 1, "feedback": "현명합니다! 비판을 성장의 거름으로 삼아 내 실력으로 만드는 긍정적 메타인지!" }] },
+            { "id": 16, "category": "Critical_Thinking", "scenario": "AI가 과학 원리를 아주 쉽게 설명해줬습니다.", "options": [{ "text": "이게 전부인 줄 알고 넘어간다.", "score": 0, "feedback": "쉽게 설명하느라 생략된 내용이 있을 수 있어요." }, { "text": "그냥 외운다.", "score": 0, "feedback": "이해 없는 암기는 금방 휘발됩니다." }, { "text": "교과서 속 용어와 비교해본다.", "score": 0, "feedback": "좋아요. 쉬운 설명과 전문적인 개념을 연결하려는 시도입니다." }, { "text": "“쉽게 설명하느라 생략된 예외나 심화 개념은 없어?”라고 물어본다.", "score": 1, "feedback": "날카롭습니다! 요약된 정보 이면의 깊이를 탐구하려는 탐구심이 대단해요." }, { "text": "설명 들은 내용을 바탕으로 내가 다시 심화 질문을 던지며 지식을 확장한다.", "score": 1, "feedback": "완벽해요! AI와의 꼬리에 꼬리를 무는 대화를 통해 주도적으로 지식을 구성하고 있군요." }] },
+            { "id": 17, "category": "Prompt_Engineering", "scenario": "친구 생일 축하 메시지를 AI에게 부탁하려고 합니다.", "options": [{ "text": "“축하 메시지 써줘”", "score": 0, "feedback": "너무 뻔한 인사말만 나올 거예요." }, { "text": "대충 나온 거 그냥 보낸다.", "score": 0, "feedback": "성의가 없으면 친구가 서운해하지 않을까요?" }, { "text": "“감동적인 거 3개, 웃긴 거 3개 추천해줘”라고 다양하게 요청한다.", "score": 0, "feedback": "좋아요. 선택지를 넓혀서 골라 쓰는 지혜!" }, { "text": "친구의 특징(축구 좋아함)과 우리의 관계(10년지기)를 설명하고 써달라 한다.", "score": 1, "feedback": "훌륭합니다! 맥락 정보를 제공해야 맞춤형 결과가 나온다는 걸 정확히 알고 계시네요." }, { "text": "AI가 써준 초안을 보고, “좀 더 친근하게, 이모티콘 섞어서”라며 핑퐁 대화로 다듬는다.", "score": 1, "feedback": "최고예요! 한 번에 끝내지 않고 대화를 통해 퀄리티를 높이는 'Co-creation'입니다." }] },
+            { "id": 18, "category": "Meta_Cognition", "scenario": "AI가 짜준 코드로 과제를 제출했습니다.", "options": [{ "text": "그냥 복붙해서 냈다. 점수 잘 나오겠지?", "score": 0, "feedback": "점수는 받을지 몰라도, 내 실력은 0점입니다." }, { "text": "돌아가는지 확인만 해봤다.", "score": 0, "feedback": "작동 여부보다 '원리' 이해가 중요해요." }, { "text": "코드 줄마다 주석을 달아보며 해석해봤다.", "score": 0, "feedback": "좋은 공부법입니다! 남의 코드를 읽는 것도 큰 공부죠." }, { "text": "로직을 이해한 뒤, 백지상태에서 내 힘으로 다시 짜봤다.", "score": 1, "feedback": "박수! AI를 '참고서'로만 쓰고 진짜 내 근육을 키우는 완벽한 학습법입니다." }, { "text": "AI 코드보다 더 효율적인 방법은 없는지 물어보고 내 코드와 비교 분석했다.", "score": 1, "feedback": "개발자 수준이네요! 더 나은 정답을 찾기 위해 AI와 경쟁하고 협력하는 모습이 인상적입니다." }] },
+            { "id": 19, "category": "Critical_Thinking", "scenario": "AI가 '지구는 평평하다'는 주장을 그럴듯하게 설명합니다.", "options": [{ "text": "그런가...? 혼란스럽다.", "score": 0, "feedback": "흔들리지 마세요! 그럴듯함에 속으면 안 됩니다." }, { "text": "에이 말도 안 돼. 무시.", "score": 0, "feedback": "직관적으로 거르는 것도 좋지만, 논리적 반박이 더 좋아요." }, { "text": "과학적 팩트를 찾아본다.", "score": 0, "feedback": "좋습니다. 근거 중심으로 사실 여부를 판단하려는 자세!" }, { "text": "“그 주장의 반박 근거를 3가지 대봐”라고 챌린지를 건다.", "score": 1, "feedback": "오! AI 스스로 모순을 드러내게 만드는 고차원적인 질문 스킬입니다." }, { "text": "AI가 잘못된 정보를 그럴듯하게 생성하는 '할루시네이션' 사례로 저장해둔다.", "score": 1, "feedback": "전문가시군요. AI의 기술적 한계를 명확히 이해하고 이를 학습 소재로 활용하다니!" }] },
+            { "id": 20, "category": "Prompt_Engineering", "scenario": "발표 PPT 목차를 짜야 합니다.", "options": [{ "text": "“목차 짜줘”", "score": 0, "feedback": "너무 막연해요. AI도 뭘 해야 할지 모를 거예요." }, { "text": "발표 주제를 넣고 요청한다.", "score": 0, "feedback": "기본은 하셨군요. 하지만 더 좋은 결과가 있을 수 있어요." }, { "text": "발표 시간(5분), 청중(중학생), 목적(설득)을 명시한다.", "score": 0, "feedback": "좋아요! 상황 변수를 통제해서 딱 맞는 목차를 얻겠군요." }, { "text": "각 목차별로 들어가면 좋을 키워드와 추천 이미지까지 알려달라고 한다.", "score": 1, "feedback": "훌륭합니다! 목차를 넘어 발표 구성 요소 전반을 기획하게 만드는 디테일!" }, { "text": "출력 형식을 '마크다운'이나 '표'로 지정해서 슬라이드 만들기 좋게 받는다.", "score": 1, "feedback": "생산성 끝판왕! AI의 결과물을 내가 쓰기 편한 형태로 가공해받는 노하우가 탁월합니다." }] }
+        ];
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        async function loadDefaultQuestions() {
+            console.log("Loading questions (Hardcoded)...");
+            const rawData = [
+                {
+                    "id": 1,
+                    "category": "Critical_Thinking",
+                    "scenario": "역사 수행평가 중 AI가 '임진왜란은 1900년에 일어났다'는 엉터리 정보를 답변했습니다. 당신의 행동은?",
+                    "options": [
+                        { "text": "AI가 그랬으니 맞겠지 하고 그대로 쓴다.", "score": 0, "feedback": "AI도 실수를 합니다! 팩트 체크는 필수예요." },
+                        { "text": "날짜가 좀 이상한데? 하고 그냥 그 문장을 뺀다.", "score": 0, "feedback": "의심하는 건 좋지만, 정확한 정보를 찾아보는 적극성이 필요해요." },
+                        { "text": "네이버나 교과서에서 정확한 연도를 다시 찾아본다.", "score": 0, "feedback": "좋아요! 다른 출처와 교차 검증하는 습관이 훌륭합니다." },
+                        { "text": "AI에게 '틀렸어. 1592년 아니야? 정확한 출처를 대봐'라고 지적한다.", "score": 1, "feedback": "오! AI의 오류를 지적하고 근거를 요구하는 모습, 아주 날카롭습니다!" },
+                        { "text": "교과서 내용을 찍어 올리거나 정확한 연도를 알려주며, '이 정보를 바탕으로 아까 그 답변 다시 고쳐써'라고 AI를 교정해준다.", "score": 1, "feedback": "완벽합니다! AI를 가르쳐서 더 나은 결과를 얻어내는 'AI 조련사'시군요!" }
+                    ]
+                },
+                {
+                    "id": 2,
+                    "category": "Prompt_Engineering",
+                    "scenario": "영어 에세이를 쓰려고 합니다. AI에게 첫 요청을 어떻게 보낼까요?",
+                    "options": [
+                        { "text": "그냥 “영어 에세이 써줘”라고 입력한다.", "score": 0, "feedback": "너무 단순한 질문은 단순한 답변만 낳습니다. 구체적으로 말해보세요." },
+                        { "text": "“환경 오염에 관한 에세이 써줘”라고 주제만 던진다.", "score": 0, "feedback": "주제는 줬지만, 형식이나 수준을 말해주지 않으면 엉뚱한 글이 나올 수 있어요." },
+                        { "text": "“고등학생 수준으로, 서론-본론-결론 구조를 갖춰서 환경 오염 에세이를 500자 내외로 써줘”라고 구체적으로 요청한다.", "score": 0, "feedback": "아주 좋습니다! 분량, 형식, 수준을 명확히 제시했네요." },
+                        { "text": "형식과 분량 조건뿐만 아니라, “독자의 흥미를 끌 수 있는 문장으로 시작하고, 설득력 있는 근거를 2가지를 포함해줘”라고 세부 지침을 구체적으로 추가한다.", "score": 1, "feedback": "훌륭해요! 글의 구성 요소까지 디테일하게 지시하는 프롬프트 엔지니어링 실력이 뛰어납니다." },
+                        { "text": "먼저 AI에게 개요를 짜달라고 한 뒤, 그 개요를 수정보완하고, 각 문단별로 내가 원하는 톤앤매너를 지정하여 단계적으로 글을 완성해나간다.", "score": 1, "feedback": "최고예요! AI와 한 번에 끝내지 않고 단계별로 협업하며 완성도를 높이는 진정한 프로입니다." }
+                    ]
+                },
+                { "id": 3, "category": "Meta_Cognition", "scenario": "수학 문제를 풀다가 막혔습니다. AI를 어떻게 활용할까요?", "options": [{ "text": "문제 전체를 찍어서 AI에게 풀라고 하고 답을 베낀다.", "score": 0, "feedback": "답만 베끼면 내 실력은 늘지 않아요. AI는 숙제 머신이 아닙니다." }, { "text": "AI의 풀이 과정을 쓱 훑어보고 이해한 척 넘어간다.", "score": 0, "feedback": "눈으로만 보고 안다고 착각하는 '메타인지 오류'를 조심하세요." }, { "text": "AI의 풀이를 보고 이해가 안 가는 부분만 다시 물어본다.", "score": 0, "feedback": "모르는 부분을 질문하는 태도, 아주 좋습니다!" }, { "text": "“답을 알려주지 말고, 내가 어디서 실수했는지 힌트만 줘”라고 요청한다.", "score": 1, "feedback": "오! 답을 바로 보지 않고 스스로 고민하려는 의지가 돋보입니다." }, { "text": "AI와 대화하며 내가 어떤 개념을 잘못 이해하고 있었는지 깨닫고, 유사한 다른 문제를 만들어달라고 하여 내 실력을 재확인한다.", "score": 1, "feedback": "완벽해요! AI를 '개인 과외 선생님'으로 활용하여 내 약점을 완벽히 보완하고 있군요." }] },
+                { "id": 4, "category": "Critical_Thinking", "scenario": "AI가 추천해준 진로 정보가 내 생각과 다릅니다.", "options": [{ "text": "내 생각이 틀렸나 보다 하고 AI 말을 따른다.", "score": 0, "feedback": "AI가 항상 정답은 아닙니다. 내 주관을 가지세요." }, { "text": "그냥 무시하고 내가 원래 생각했던 대로 한다.", "score": 0, "feedback": "AI의 의견도 하나의 참고 자료가 될 수 있어요. 무조건 무시는 아쉬워요." }, { "text": "AI가 왜 그렇게 추천했는지 근거를 물어보고 내 생각과 비교해본다.", "score": 0, "feedback": "좋습니다! 근거를 확인하고 비교하는 비판적 사고 과정입니다." }, { "text": "내 성향과 상황을 더 구체적으로 설명하며 다시 추천해달라고 요구한다.", "score": 1, "feedback": "훌륭해요! 정보가 부족해서 잘못 추천했을 수 있음을 알고, 정보를 추가로 제공했군요." }, { "text": "AI의 추천 알고리즘 한계를 인지하고, 선생님/전문가 의견을 추가로 구한다.", "score": 1, "feedback": "최고입니다! AI뿐만 아니라 인간 전문가의 의견까지 종합적으로 고려하는 균형 감각!" }] },
+                { "id": 5, "category": "Prompt_Engineering", "scenario": "AI 그림 생성 중 원하는 결과가 안 나옵니다.", "options": [{ "text": "“이상해, 다시 해” 반복.", "score": 0, "feedback": "구체적인 피드백 없이 반복만 하면 AI도 혼란스러워해요." }, { "text": "포기한다.", "score": 0, "feedback": "조금만 더 시도해보세요! 프롬프트를 바꾸면 결과도 달라집니다." }, { "text": "구체적으로 지적한다(“색감이 어두워”).", "score": 0, "feedback": "좋아요. 무엇이 문제인지 명확히 짚어주는 것이 중요합니다." }, { "text": "화풍, 조명 등 전문 용어 활용.", "score": 1, "feedback": "오, 전문 용어를 사용하니 AI가 훨씬 정확하게 알아듣겠죠?" }, { "text": "텍스트 묘사를 먼져 시키거나 레퍼런스 이미지를 제공한다.", "score": 1, "feedback": "완벽합니다! AI가 참고할 수 있는 예시를 주는 것이 가장 확실한 방법이죠." }] },
+                { "id": 6, "category": "Meta_Cognition", "scenario": "과제를 빨리 끝내고 남은 시간은?", "options": [{ "text": "게임한다.", "score": 0, "feedback": "휴식도 중요하지만, 남는 시간을 더 알차게 쓸 수 없을까요?" }, { "text": "다른 과제도 빨리 해치운다.", "score": 0, "feedback": "효율적이지만, 배운 내용을 깊이 있게 소화하는 시간도 필요해요." }, { "text": "내용을 재검토한다.", "score": 0, "feedback": "좋은 습관입니다. 실수를 줄일 수 있죠." }, { "text": "AI 답변 중 몰랐던 지식을 공부한다.", "score": 1, "feedback": "훌륭해요! AI를 통해 단순히 과제만 하는 게 아니라 지식을 확장하고 있군요." }, { "text": "AI 활용 노하우를 정리한다.", "score": 1, "feedback": "최고입니다! '내가 어떻게 AI를 썼을 때 잘 됐지?'를 복기하며 나만의 스킬을 쌓고 계시네요." }] },
+                { "id": 7, "category": "Critical_Thinking", "scenario": "유튜브 알고리즘 추천 영상만 계속 보게 됩니다.", "options": [{ "text": "재미있으니까 계속 본다.", "score": 0, "feedback": "알고리즘의 거품(Filter Bubble)에 갇힐 수 있어요!" }, { "text": "가끔 넘긴다.", "score": 0, "feedback": "소극적인 저항이군요." }, { "text": "의식적으로 다른 주제를 검색해본다.", "score": 0, "feedback": "좋아요! 편식을 막기 위해 골고루 정보를 섭취하려는 노력이 보입니다." }, { "text": "이 영상이 왜 추천되었는지 이유를 생각보고, 시청 기록을 관리한다.", "score": 1, "feedback": "오! 알고리즘의 원리를 이해하고 주체적으로 관리하는 모습, 멋집니다." }, { "text": "편향된 정보의 위험성을 인지하고 다양한 관점의 영상을 찾아 비교 시청한다.", "score": 1, "feedback": "완벽해요! 정보의 치우침을 경계하고 균형 잡힌 시각을 유지하려는 태도가 훌륭합니다." }] },
+                { "id": 8, "category": "Prompt_Engineering", "scenario": "AI가 코드를 짰는데 오류가 납니다.", "options": [{ "text": "화내며 욕을 한다.", "score": 0, "feedback": "AI에게 화내도 문제는 해결되지 않아요..." }, { "text": "내가 처음부터 다시 짠다.", "score": 0, "feedback": "AI를 활용하려던 처음 목적이 사라졌네요. 아쉬워요." }, { "text": "오류 메시지를 그대로 보여주고 고쳐달라고 한다.", "score": 0, "feedback": "가장 기본적인 디버깅 방법입니다. 나쁘지 않아요." }, { "text": "어디가 틀린 것 같은지 짐작가는 부분을 말해주며 수정을 요청한다.", "score": 1, "feedback": "좋아요! AI에게 탐색의 단서를 제공해주면 훨씬 빨리 고칠 수 있죠." }, { "text": "기능 단위로 쪼개서 테스트하게 시키고, 단계별로 오류를 잡아나간다.", "score": 1, "feedback": "프로 개발자시군요! 문제를 분해해서 해결하는 컴퓨팅 사고력이 뛰어납니다." }] },
+                { "id": 9, "category": "Critical_Thinking", "scenario": "팀 프로젝트에 AI를 사용하자고 친구가 제안합니다.", "options": [{ "text": "무조건 찬성! 편하니까.", "score": 0, "feedback": "편리함만 추구하다간 표절 문제나 퀄리티 저하가 생길 수 있어요." }, { "text": "무조건 반대! 우리 힘으로 해야지.", "score": 0, "feedback": "AI라는 강력한 도구를 배제하는 것은 효율성 측면에서 아쉬울 수 있어요." }, { "text": "단순 자료 조사나 오타 검사만 시키자.", "score": 0, "feedback": "안전한 선택이네요. 보조 도구로 활용하는 좋은 자세입니다." }, { "text": "어떤 부분에 쓰고 어떤 부분은 사람이 할지 역할을 명확히 나누자.", "score": 1, "feedback": "현명합니다! AI와 인간의 R&R(역할)을 구분하는 협업의 정석입니다." }, { "text": "사용 가이드라인을 먼저 정하고, AI 결과물을 우리가 팩트체크할 방법을 논의한다.", "score": 1, "feedback": "최고예요! AI 활용의 부작용을 미리 예방하고 책임감 있게 사용하려는 태도입니다." }] },
+                { "id": 10, "category": "Prompt_Engineering", "scenario": "AI가 써준 보고서 문장이 너무 딱딱하고 어색합니다.", "options": [{ "text": "그냥 낸다.", "score": 0, "feedback": "내 이름으로 나가는 보고서인데... 책임감이 조금 아쉬워요." }, { "text": "AI 글은 다 지우고 내가 다시 쓴다.", "score": 0, "feedback": "시간이 두 배로 들겠네요." }, { "text": "내 말투로 조금 고쳐 쓴다.", "score": 0, "feedback": "좋아요. 내 색깔을 입히는 과정이 필요하죠." }, { "text": "“좀 더 부드러운 구어체로 바꿔줘”라고 스타일 수정을 요청한다.", "score": 1, "feedback": "훌륭해요! 원하는 톤앤매너를 구체적으로 지시할 줄 아시네요." }, { "text": "내 경험이나 감정이 드러나는 문단을 추가해서 AI 글을 내 글로 재탄생시킨다.", "score": 1, "feedback": "완벽합니다! AI의 논리에 인간의 감성을 더해 세상에 하나뿐인 글을 만들었군요." }] },
+                { "id": 11, "category": "Meta_Cognition", "scenario": "AI 모델이 업데이트되면서 답변 스타일이 바뀌었습니다.", "options": [{ "text": "불편해서 안 쓴다.", "score": 0, "feedback": "변화는 피할 수 없어요. 적응하는 유연성이 필요합니다." }, { "text": "예전과 똑같이 계속 질문한다.", "score": 0, "feedback": "도구는 바뀌었는데 나는 그대로라면, 좋은 결과를 얻기 힘들겠죠?" }, { "text": "검색해서 이번 업데이트의 특징이 뭔지 찾아본다.", "score": 0, "feedback": "좋아요. 도구의 변화를 파악하려는 학습 태도가 훌륭합니다." }, { "text": "프롬프트를 조금씩 바꿔가며 어떻게 답변이 달라지는지 테스트해본다.", "score": 1, "feedback": "오! 실험 정신이 투철하시네요. 변화에 능동적으로 대처하고 있습니다." }, { "text": "바뀐 모델에 맞는 '시스템 프롬프트(역할 부여)'를 새롭게 만들어 최적화한다.", "score": 1, "feedback": "당신은 AI 마스터! 도구의 특성에 맞춰 나만의 사용법을 업그레이드할 줄 아는군요." }] },
+                { "id": 12, "category": "Meta_Cognition", "scenario": "AI가 나보다 훨씬 빠르고 똑똑해 보일 때 드는 생각은?", "options": [{ "text": "나는 이제 필요 없나... 위축된다.", "score": 0, "feedback": "AI는 도구일 뿐, 그것을 쓰는 주체는 당신입니다! 기죽지 마세요." }, { "text": "꼴 보기 싫어서 꺼버린다.", "score": 0, "feedback": "회피한다고 문제가 해결되진 않아요." }, { "text": "어차피 얘는 감정도 없는 데이터 덩어리일 뿐이라고 생각한다.", "score": 0, "feedback": "맞아요. 하지만 꽤 유용한 데이터 덩어리죠." }, { "text": "AI가 잘하는 것(정보 처리)과 내가 잘하는 것(판단, 공감)이 다름을 구분한다.", "score": 1, "feedback": "정확한 메타인지입니다! 나의 고유한 가치를 잘 알고 계시네요." }, { "text": "이 똑똑한 녀석을 내 비서로 부려서 내가 더 엄청난 성과를 내야겠다고 다짐한다.", "score": 1, "feedback": "최고의 마인드셋! AI의 능력을 나의 능력으로 흡수하려는 주도적인 태도입니다." }] },
+                { "id": 13, "category": "Critical_Thinking", "scenario": "AI가 특정 인종이나 성별에 대한 편향적인 발언을 했습니다.", "options": [{ "text": "AI 말이니 맞겠지 하고 동조한다.", "score": 0, "feedback": "위험해요! AI는 인터넷의 편견까지 학습했을 수 있습니다." }, { "text": "불쾌하지만 그냥 무시한다.", "score": 0, "feedback": "개인적으로는 피했지만, 근본적인 해결은 아니네요." }, { "text": "다른 자료를 찾아보고 사실이 아님을 확인한다.", "score": 0, "feedback": "좋아요. 팩트 체크를 통해 편향에 휩쓸리지 않았군요." }, { "text": "AI에게 “그건 편향된 시각이야. 중립적인 관점에서 다시 말해줘”라고 요구한다.", "score": 1, "feedback": "멋집니다! AI의 윤리적 문제를 지적하고 교정하려는 용기가 있습니다." }, { "text": "해당 사례를 캡처해두고, AI 윤리에 대해 친구들과 토론해본다.", "score": 1, "feedback": "완벽해요! 기술의 사회적 영향력까지 고찰하는 깊이 있는 시민 의식을 가졌네요." }] },
+                { "id": 14, "category": "Prompt_Engineering", "scenario": "매일 똑같은 학습 플래너를 짜달라고 하기 귀찮습니다.", "options": [{ "text": "어쩔 수 없이 매일 새로 입력한다.", "score": 0, "feedback": "반복 작업은 자동화하는 게 AI 활용의 핵심인데 아쉽네요." }, { "text": "어제 대화 내용을 복사해서 붙여넣고 수정한다.", "score": 0, "feedback": "조금 편해졌지만 여전히 번거롭죠." }, { "text": "잘 작동했던 프롬프트를 메모장에 저장해두고 쓴다.", "score": 0, "feedback": "좋은 습관입니다! 나만의 프롬프트 도서관을 만들고 계시군요." }, { "text": "날짜와 할 일만 바꾸면 되게끔 빈칸(변수)이 뚫린 템플릿을 만든다.", "score": 1, "feedback": "오! 프롬프트를 '프로그래밍'하듯이 구조화하셨네요. 아주 효율적입니다." }, { "text": "AI에게 '나의 학습 패턴과 선호 방식'을 미리 학습(Custom Instruction)시켜 둔다.", "score": 1, "feedback": "끝판왕입니다! AI를 나에게 딱 맞춘 '맞춤형 비서'로 커스터마이징하셨군요." }] },
+                { "id": 15, "category": "Meta_Cognition", "scenario": "내가 쓴 글을 AI에게 평가해달라고 했는데 혹평을 받았습니다.", "options": [{ "text": "기분 나빠서 지워버린다.", "score": 0, "feedback": "감정적인 대응은 성장에 도움이 안 돼요 ㅠㅠ" }, { "text": "AI가 뭘 알겠어? 무시한다.", "score": 0, "feedback": "쓴소리에도 귀를 기울일 줄 아는 포용력이 필요해요." }, { "text": "어디가 별로인지 구체적으로 찍어달라고 한다.", "score": 0, "feedback": "좋습니다. 피드백을 구체화해서 수용하려는 태도네요." }, { "text": "“어떤 기준으로 평가한 거야?”라고 평가 기준을 물어보고 내 의도를 설명한다.", "score": 1, "feedback": "훌륭해요! 평가자와의 대화를 통해 간극을 좁히고 설득하는 과정이네요." }, { "text": "수정 예시를 보여달라고 한 뒤, 원본과 비교하며 배울 점만 쏙쏙 뽑아먹는다.", "score": 1, "feedback": "현명합니다! 비판을 성장의 거름으로 삼아 내 실력으로 만드는 긍정적 메타인지!" }] },
+                { "id": 16, "category": "Critical_Thinking", "scenario": "AI가 과학 원리를 아주 쉽게 설명해줬습니다.", "options": [{ "text": "이게 전부인 줄 알고 넘어간다.", "score": 0, "feedback": "쉽게 설명하느라 생략된 내용이 있을 수 있어요." }, { "text": "그냥 외운다.", "score": 0, "feedback": "이해 없는 암기는 금방 휘발됩니다." }, { "text": "교과서 속 용어와 비교해본다.", "score": 0, "feedback": "좋아요. 쉬운 설명과 전문적인 개념을 연결하려는 시도입니다." }, { "text": "“쉽게 설명하느라 생략된 예외나 심화 개념은 없어?”라고 물어본다.", "score": 1, "feedback": "날카롭습니다! 요약된 정보 이면의 깊이를 탐구하려는 탐구심이 대단해요." }, { "text": "설명 들은 내용을 바탕으로 내가 다시 심화 질문을 던지며 지식을 확장한다.", "score": 1, "feedback": "완벽해요! AI와의 꼬리에 꼬리를 무는 대화를 통해 주도적으로 지식을 구성하고 있군요." }] },
+                { "id": 17, "category": "Prompt_Engineering", "scenario": "친구 생일 축하 메시지를 AI에게 부탁하려고 합니다.", "options": [{ "text": "“축하 메시지 써줘”", "score": 0, "feedback": "너무 뻔한 인사말만 나올 거예요." }, { "text": "대충 나온 거 그냥 보낸다.", "score": 0, "feedback": "성의가 없으면 친구가 서운해하지 않을까요?" }, { "text": "“감동적인 거 3개, 웃긴 거 3개 추천해줘”라고 다양하게 요청한다.", "score": 0, "feedback": "좋아요. 선택지를 넓혀서 골라 쓰는 지혜!" }, { "text": "친구의 특징(축구 좋아함)과 우리의 관계(10년지기)를 설명하고 써달라 한다.", "score": 1, "feedback": "훌륭합니다! 맥락 정보를 제공해야 맞춤형 결과가 나온다는 걸 정확히 알고 계시네요." }, { "text": "AI가 써준 초안을 보고, “좀 더 친근하게, 이모티콘 섞어서”라며 핑퐁 대화로 다듬는다.", "score": 1, "feedback": "최고예요! 한 번에 끝내지 않고 대화를 통해 퀄리티를 높이는 'Co-creation'입니다." }] },
+                { "id": 18, "category": "Meta_Cognition", "scenario": "AI가 짜준 코드로 과제를 제출했습니다.", "options": [{ "text": "그냥 복붙해서 냈다. 점수 잘 나오겠지?", "score": 0, "feedback": "점수는 받을지 몰라도, 내 실력은 0점입니다." }, { "text": "돌아가는지 확인만 해봤다.", "score": 0, "feedback": "작동 여부보다 '원리' 이해가 중요해요." }, { "text": "코드 줄마다 주석을 달아보며 해석해봤다.", "score": 0, "feedback": "좋은 공부법입니다! 남의 코드를 읽는 것도 큰 공부죠." }, { "text": "로직을 이해한 뒤, 백지상태에서 내 힘으로 다시 짜봤다.", "score": 1, "feedback": "박수! AI를 '참고서'로만 쓰고 진짜 내 근육을 키우는 완벽한 학습법입니다." }, { "text": "AI 코드보다 더 효율적인 방법은 없는지 물어보고 내 코드와 비교 분석했다.", "score": 1, "feedback": "개발자 수준이네요! 더 나은 정답을 찾기 위해 AI와 경쟁하고 협력하는 모습이 인상적입니다." }] },
+                { "id": 19, "category": "Critical_Thinking", "scenario": "AI가 '지구는 평평하다'는 주장을 그럴듯하게 설명합니다.", "options": [{ "text": "그런가...? 혼란스럽다.", "score": 0, "feedback": "흔들리지 마세요! 그럴듯함에 속으면 안 됩니다." }, { "text": "에이 말도 안 돼. 무시.", "score": 0, "feedback": "직관적으로 거르는 것도 좋지만, 논리적 반박이 더 좋아요." }, { "text": "과학적 팩트를 찾아본다.", "score": 0, "feedback": "좋습니다. 근거 중심으로 사실 여부를 판단하려는 자세!" }, { "text": "“그 주장의 반박 근거를 3가지 대봐”라고 챌린지를 건다.", "score": 1, "feedback": "오! AI 스스로 모순을 드러내게 만드는 고차원적인 질문 스킬입니다." }, { "text": "AI가 잘못된 정보를 그럴듯하게 생성하는 '할루시네이션' 사례로 저장해둔다.", "score": 1, "feedback": "전문가시군요. AI의 기술적 한계를 명확히 이해하고 이를 학습 소재로 활용하다니!" }] },
+                { "id": 20, "category": "Prompt_Engineering", "scenario": "발표 PPT 목차를 짜야 합니다.", "options": [{ "text": "“목차 짜줘”", "score": 0, "feedback": "너무 막연해요. AI도 뭘 해야 할지 모를 거예요." }, { "text": "발표 주제를 넣고 요청한다.", "score": 0, "feedback": "기본은 하셨군요. 하지만 더 좋은 결과가 있을 수 있어요." }, { "text": "발표 시간(5분), 청중(중학생), 목적(설득)을 명시한다.", "score": 0, "feedback": "좋아요! 상황 변수를 통제해서 딱 맞는 목차를 얻겠군요." }, { "text": "각 목차별로 들어가면 좋을 키워드와 추천 이미지까지 알려달라고 한다.", "score": 1, "feedback": "훌륭합니다! 목차를 넘어 발표 구성 요소 전반을 기획하게 만드는 디테일!" }, { "text": "출력 형식을 '마크다운'이나 '표'로 지정해서 슬라이드 만들기 좋게 받는다.", "score": 1, "feedback": "생산성 끝판왕! AI의 결과물을 내가 쓰기 편한 형태로 가공해받는 노하우가 탁월합니다." }] }
+            ];
+
+            try {
+                questions = shuffleArray(rawData);
+                console.log("✅ Loaded " + questions.length + " questions.");
+            } catch (e) {
+                console.error("Shuffle failed, using raw data", e);
+                questions = rawData;
+            }
+        }
+
+        // --- Event Listeners ---
+        startBtn.addEventListener('click', startAssessment);
+        // fileInput listener removed
+        // nextBtn.onclick removed
+        prevBtn.addEventListener('click', () => navigate(-1));
+        document.getElementById('btn-download').addEventListener('click', generatePDF);
+
+        async function startAssessment() {
+            // Validation
+            // Validation Start
+            const grade = document.getElementById('input-grade').value;
+            const cls = document.getElementById('input-class').value;
+            // Name/Number removed to protect privacy
+
+            if (!grade || !cls) {
+                alert("학년과 반을 선택해주세요!");
+                return;
+            }
+
+            studentInfo = { grade, class: cls };
+
+            const btn = document.getElementById('btn-start');
+            const originalText = btn.innerHTML;
+
+            // Loading State
+            btn.disabled = true;
+            btn.innerHTML = `<svg class="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg> 준비 중...`;
+
+            try {
+                // Auto Load Default
+                if (questions.length === 0) {
+                    await loadDefaultQuestions();
+                }
+                if (!questions || questions.length === 0) {
+                    throw new Error("No Questions");
+                }
+
+                // Minimum delay for visual feedback
+                await new Promise(r => setTimeout(r, 800));
+
+                currentIndex = 0;
+                answers = {};
+                switchView('assessment');
+                renderQuestion();
+
+            } catch (e) {
+                alert("질문 데이터 로딩 오류:\n" + e.message + "\n\n" + (e.stack ? e.stack.substring(0, 200) : ""));
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                console.error("Start Assessment Error:", e);
+            }
+        }
+
+        // ... Keep loadDefaultQuestions, shuffleArray ...
+
+        function navigate(direction) {
+            if (currentIndex + direction >= questions.length) {
+                try {
+                    calculateAndRenderResults();
+                    switchView('result');
+                } catch (e) {
+                    console.error(e);
+                    alert("결과 처리 중 오류가 발생했습니다: " + e.message);
+                }
+                return;
+            }
+            if (currentIndex + direction < 0) return;
+
+            currentIndex += direction;
+            renderQuestion();
+        }
+
+
+
+        function renderQuestion() {
+            const q = questions[currentIndex];
+
+            // DOM Elements
+            const progressText = document.getElementById('progress-text');
+            const progressBar = document.getElementById('progress-bar');
+            const progressPercent = document.getElementById('progress-percent'); // Added
+            const categoryEl = document.getElementById('q-category');
+            const scenarioEl = document.getElementById('q-scenario');
+            const optionsContainer = document.getElementById('q-options');
+
+            // Update Header
+            if (progressText) progressText.innerText = `${currentIndex + 1} / ${questions.length}`;
+            if (progressBar) progressBar.style.width = `${((currentIndex + 1) / questions.length) * 100}%`;
+            if (progressPercent) progressPercent.innerText = `${Math.round(((currentIndex + 1) / questions.length) * 100)}%`; // Added update
+
+            categoryEl.innerText = CATEGORY_MAP[q.category] || q.category;
+            scenarioEl.innerText = q.scenario;
+
+            // Options
+            if (optionsContainer) {
+                optionsContainer.innerHTML = '';
+
+                // Shallow Copy & Shuffle for Display
+                const displayOptions = [...q.options];
+                shuffleArray(displayOptions);
+
+                displayOptions.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full text-left p-4 rounded-xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200 group relative flex items-center";
+
+                    // Content
+                    btn.innerHTML = `
+                        <div class="flex-grow">
+                            <span class="text-slate-700 group-hover:text-indigo-700 font-medium text-lg leading-snug">${opt.text}</span>
+                        </div>
+                        <div class="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500 ml-3">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </div>
+                    `;
+
+                    btn.onclick = () => {
+                        answers[q.id] = opt;
+                        // navigate(1); // Old immediate validation
+
+                        // Visual feedback
+                        btn.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-50');
+
+                        // Auto-advance with delay
+                        setTimeout(() => {
+                            navigate(1);
+                        }, 300);
+                    };
+
+                    optionsContainer.appendChild(btn);
+                });
+            } else {
+                console.error("Options container not found!");
+            }
+
+            // Button State
+            if (prevBtn) {
+                prevBtn.disabled = currentIndex === 0;
+                prevBtn.classList.toggle('opacity-50', currentIndex === 0);
+            }
+        }
+
+
+
+        // ... Modified calculateAndRenderResults ...
+        function calculateAndRenderResults() {
+            // ... (Keep existing score calculation logic) ...
+            let totalScore = 0;
+            const maxTotalScore = questions.length; // 1 point per question
+            const categoryScores = {};
+            const collectedFeedback = [];
+            const resultDetails = []; // To save to DB
+
+            // Initialize Category Scores
+            questions.forEach(q => {
+                if (!categoryScores[q.category]) categoryScores[q.category] = { score: 0, total: 0 };
+                categoryScores[q.category].total += 1;
+            });
+
+            // Calculate
+            questions.forEach(q => {
+                const answer = answers[q.id];
+                if (answer) {
+                    totalScore += answer.score;
+                    categoryScores[q.category].score += answer.score;
+
+                    resultDetails.push({
+                        qId: q.id,
+                        category: q.category,
+                        score: answer.score,
+                        userAnswer: answer.text,
+                        feedback: answer.score === 0 ? answer.feedback : null
+                    });
+
+                    // Collect Incorrect Feedback
+                    if (answer.score === 0 && answer.feedback) {
+                        collectedFeedback.push({
+                            id: q.id,
+                            scenario: q.scenario,
+                            userAnswer: answer.text,
+                            feedback: answer.feedback
+                        });
+                    }
+                }
+            });
+
+            // Level Logic
+            const accuracy = (totalScore / maxTotalScore) * 100;
+            let levelIndex = 1;
+            let levelTitle = "";
+
+            if (accuracy <= 40) { levelIndex = 1; levelTitle = "Level 1. 응애 드라이버"; }
+            else if (accuracy <= 60) { levelIndex = 2; levelTitle = "Level 2. 초보 드라이버"; }
+            else if (accuracy <= 80) { levelIndex = 3; levelTitle = "Level 3. 모범 드라이버"; }
+            else if (accuracy <= 90) { levelIndex = 4; levelTitle = "Level 4. 베스트 드라이버"; }
+            else { levelIndex = 5; levelTitle = "Level 5. 우주급 드라이버"; }
+
+            const levelDescriptions = {
+                1: "AI가 운전하는 차에 얌전히 앉아 계시는군요! 👶<br>이제 핸들을 잡고 직접 목적지를 입력해보는 건 어떨까요?",
+                2: "이제 막 면허를 따고 주행을 시작하셨군요! 🚗<br>조금 더 연습하면 AI를 자유자재로 다루실 수 있을 거예요.",
+                3: "안전수칙을 잘 지키는 훌륭한 운전자입니다! 🚕<br>AI의 원리를 조금 더 파고들면 험난한 길도 문제없어요.",
+                4: "AI의 특성을 꿰뚫고 계시는 당신은 베스트 드라이버! 🏎️<br>동료들에게 노하우를 전수해주셔도 되겠는데요?",
+                5: "AI와 혼연일체가 되어 우주를 누비는 마스터! 🚀<br>더 이상 바랄 게 없습니다. 당신이 바로 미래입니다."
+            };
+
+            // Render UI
+            document.getElementById('level-character').innerHTML = CHARACTERS[levelIndex];
+            document.getElementById('level-badge').innerText = levelTitle;
+            document.getElementById('level-title').innerText = levelTitle.split('. ')[1]; // Just title
+            document.getElementById('total-feedback').innerHTML = levelDescriptions[levelIndex]; // Updated feedback text
+            document.getElementById('total-score').innerText = totalScore;
+            document.getElementById('max-score').innerText = maxTotalScore;
+
+            // Render Chart & Details ... (Keep existing rendering logic) ...
+            renderRadarChart(categoryScores);
+            renderCategoryDetails(categoryScores);
+
+            // Render Student Info in Report - Hidden until export
+            // document.getElementById('report-student-info').innerText = ...; 
+
+
+            // General Advice
+            const generalAdvice = {
+                1: "아직은 AI가 낯설게 느껴질 수 있어요. 하지만 괜찮습니다! '이게 뭐지?'라는 호기심부터 시작해보세요. 숙제를 할 때 정답을 묻기보다 '힌트'를 달라고 하거나, 관심 있는 주제로 대화를 걸어보는 것부터 추천합니다. AI는 당신이 질문하는 만큼 똑똑해지는 거울 같은 존재랍니다.",
+                2: "기본적인 사용법은 알고 계시네요! 이제는 단순한 질문을 넘어, 구체적인 상황과 조건을 덧붙이는 연습이 필요합니다. '글 써줘' 대신 '친구에게 보내는 따뜻한 편지 형식으로 써줘'처럼 말이죠. 나의 의도를 명확히 전달할수록 AI는 더 좋은 파트너가 될 거예요.",
+                3: "AI를 안전하고 유용하게 활용할 줄 아는 모범생! 훌륭합니다. 이제는 AI가 준 답변을 비판적으로 검증하는 습관을 더 길러보세요. '이 정보가 진짜일까?', '편향된 건 아닐까?' 의심해보는 눈을 가진다면, AI에 휘둘리지 않고 주도권을 쥘 수 있습니다.",
+                4: "탁월한 활용 능력을 갖추셨군요! AI의 기술적 특성과 윤리적 문제까지 고려하는 통찰력이 돋보입니다. 친구들에게 좋은 프롬프트를 공유하거나, 팀 프로젝트에서 AI 협업을 주도해보는 건 어떨까요? 당신은 이미 훌륭한 AI 리더입니다.",
+                5: "더 이상 가르칠 게 없는 마스터 레벨입니다! 기술을 단순히 사용하는 단계를 넘어, 나만의 방식으로 응용하고 재창조하고 계시네요. 앞으로 변화하는 AI 트렌드를 계속 공부하며, 인간만의 고유한 창의성과 감성을 더해 세상을 놀라게 해보세요!"
+            };
+            document.getElementById('general-advice').innerText = generalAdvice[levelIndex];
+
+            // Personalized Feedback with User Answer
+            const feedbackContainer = document.getElementById('personalized-feedback');
+            feedbackContainer.innerHTML = '';
+
+            if (collectedFeedback.length === 0) {
+                feedbackContainer.innerHTML = `<div class="p-6 text-center text-indigo-600 font-bold bg-indigo-50 rounded-xl border border-indigo-100">🎉 완벽합니다! 모든 상황에서 주도적인 최고의 드라이버입니다!</div>`;
+            } else {
+                collectedFeedback.forEach(item => {
+                    const fbItem = document.createElement('div');
+                    fbItem.className = "bg-white p-4 rounded-lg border border-orange-200 shadow-sm";
+                    fbItem.innerHTML = `
+                         <div class="flex items-start mb-3">
+                             <div class="bg-orange-100 text-orange-600 text-xs font-bold px-2 py-1 rounded-md mr-2 mt-0.5 whitespace-nowrap">Q${item.id} 보완점</div>
+                             <div class="text-sm font-medium text-gray-800 leading-snug">${item.scenario}</div>
+                         </div>
+                         <div class="pl-4 border-l-2 border-orange-200 ml-1 space-y-2">
+                            <div class="text-sm bg-gray-50 p-2 rounded text-gray-500">
+                                <span class="text-xs text-gray-400 block mb-1">나의 선택:</span>
+                                "${item.userAnswer}" <span class="text-xs text-red-400">(아쉬운 선택)</span>
+                            </div>
+                            <div class="text-sm text-indigo-700 font-medium bg-indigo-50 p-2 rounded">
+                                <span class="text-xs text-indigo-400 block mb-1">💡 코치의 조언:</span>
+                                ${item.feedback}
+                            </div>
+                         </div>
+                     `;
+                    feedbackContainer.appendChild(fbItem);
+                });
+            }
+
+            // --- SAVE TO FIRESTORE ---
+            if (studentInfo && studentInfo.grade) {
+                saveResultToFirebase({
+                    grade: studentInfo.grade,
+                    class: studentInfo.class,
+                    number: null, // Removed
+                    name: "익명",   // Anonymous
+                    totalScore,
+                    levelTitle,
+                    categoryScores,
+                    details: resultDetails,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } else {
+                console.error("No studentInfo found to save!");
+            }
+        }
+
+        // Result saving is handled below in a consolidated function
+        function renderRadarChart(scores) {
+            const ctx = document.getElementById('radar-chart');
+            if (!ctx) return;
+
+            const labels = Object.keys(scores);
+            const data = labels.map(k => scores[k].score);
+            const maxVal = Math.max(...labels.map(k => scores[k].total)) || 5;
+
+            if (window.myRadarChart) {
+                window.myRadarChart.destroy();
+            }
+
+            window.myRadarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels.map(k => CATEGORY_MAP[k] ? CATEGORY_MAP[k].split(' (')[0] : k),
+                    datasets: [{
+                        label: '영역별 점수',
+                        data: data,
+                        fill: true,
+                        backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                        borderColor: 'rgb(79, 70, 229)',
+                        pointBackgroundColor: 'rgb(79, 70, 229)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(79, 70, 229)'
+                    }]
+                },
+                options: {
+                    elements: {
+                        line: { borderWidth: 3 }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: { display: true },
+                            suggestedMin: 0,
+                            suggestedMax: maxVal,
+                            ticks: { stepSize: 1 }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderCategoryDetails(scores) {
+            const container = document.getElementById('category-details');
+            if (!container) return;
+            container.innerHTML = '';
+
+            Object.keys(scores).forEach(cat => {
+                const s = scores[cat];
+                const pct = s.total > 0 ? (s.score / s.total) * 100 : 0;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = "mb-4";
+                wrapper.innerHTML = `
+                    <div class="flex justify-between mb-1">
+                        <span class="text-sm font-bold text-gray-700">${CATEGORY_MAP[cat] || cat}</span>
+                        <span class="text-sm font-bold text-indigo-600">${s.score} / ${s.total}점</span>
+                    </div>
+                    <div class="w-full bg-gray-100 rounded-full h-2.5">
+                        <div class="bg-indigo-600 h-2.5 rounded-full transition-all duration-1000" style="width: ${pct}%"></div>
+                    </div>
+                `;
+                container.appendChild(wrapper);
+            });
+        }
+
+        // Middle duplicate removed
+
+        // ... PDF Fix ...
+        // ... PDF Fix ...
+        async function generatePDF() {
+            const element = document.getElementById('result-content');
+            const downloadBtn = document.getElementById('btn-download');
+
+            const number = document.getElementById('result-input-number').value;
+            const name = document.getElementById('result-input-name').value;
+
+            if (!number || !name) {
+                alert("리포트 발급을 위해 학번과 이름을 입력해주세요.");
+                return;
+            }
+
+            const originalOverflow = element.style.overflow;
+            element.style.width = "800px";
+            element.style.overflow = "visible";
+
+            downloadBtn.innerText = "리포트 생성 중...";
+            downloadBtn.disabled = true;
+
+            try {
+                // Ensure studentInfo reflects the latest entries
+                const infoEl = document.getElementById('report-student-info');
+                infoEl.innerText = `${studentInfo.grade}학년 ${studentInfo.class}반 ${number}번 ${name}`;
+                infoEl.classList.remove('hidden');
+
+                // Ensure images/fonts loaded
+                await new Promise(r => setTimeout(r, 500));
+
+                const canvas = await html2canvas(element, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: "#ffffff",
+                    height: element.scrollHeight + 50,
+                    windowHeight: element.scrollHeight + 50
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const { jsPDF } = window.jspdf;
+
+                const imgWidth = 210;
+                const pageHeight = (canvas.height * imgWidth) / canvas.width;
+
+                const pdf = new jsPDF('p', 'mm', [imgWidth, pageHeight]);
+                pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, pageHeight);
+
+                const filename = `${studentInfo.grade}${studentInfo.class}_${number}_${name}_AI리터러시.pdf`;
+                pdf.save(filename);
+
+            } catch (e) {
+                console.error(e);
+                alert("오류가 발생했습니다: " + e.message);
+            } finally {
+                document.getElementById('report-student-info').classList.add('hidden');
+                element.style.width = "";
+                element.style.overflow = originalOverflow;
+                downloadBtn.innerText = "결과 리포트 저장 (PDF)";
+                downloadBtn.disabled = false;
+            }
+        }
+
+        // Consolidated save function
+        function saveResultToFirebase(data) {
+            if (typeof db !== 'undefined') {
+                db.collection('results').add(data)
+                    .then(() => {
+                        console.log("✅ Result Saved Successfully");
+                        alert("데이터가 성공적으로 저장되었습니다!"); // Debug Alert
+                    })
+                    .catch((e) => {
+                        console.error("❌ Error saving result: ", e);
+                        alert("데이터 저장 오류가 발생했습니다: " + e.message);
+                    });
+            } else {
+                console.warn("Firebase DB not connected");
+                alert("DB 연결 실패: 데이터베이스가 연결되지 않았습니다.");
+            }
+        }
+
+    </script>
+</body>
+
+</html>
