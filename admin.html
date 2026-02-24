@@ -6,8 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-CQ Admin Dashboard</title>
 
-    <!-- Marked for Markdown -->
+    <!-- Marked for Markdown + DOMPurify for XSS prevention -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -70,16 +71,7 @@
                     로그인
                 </button>
 
-                <div id="first-time-box" class="mt-6 pt-4 border-t border-dashed">
-                    <p class="text-xs text-gray-400 text-center mb-2">계정이 없으신가요? (최초 1회 설정)</p>
-                    <button onclick="adminSignup()" class="w-full text-indigo-600 text-xs font-bold hover:underline">
-                        계정 생성하기 (Sign Up)
-                    </button>
-                    <p class="text-[10px] text-red-400 text-center mt-2 leading-tight">
-                        * 주의: 계정 생성은 최초 관리자 등록을 위해서만 사용하세요.<br>
-                        등록 후에는 이 버튼을 비활성화하는 것이 안전합니다.
-                    </p>
-                </div>
+                <!-- 관리자 계정은 Firebase Console에서 생성하세요 -->
             </div>
         </div>
     </div>
@@ -395,25 +387,7 @@
             }
         }
 
-        async function adminSignup() {
-            const email = document.getElementById('admin-email').value;
-            const pw = document.getElementById('admin-password').value;
-
-            if (!email || !pw) {
-                alert("가입할 이메일과 비밀번호를 입력해주세요.");
-                return;
-            }
-
-            if (confirm(`현재 입력하신 정보(${email})로 관리자 계정을 생성하시겠습니까?\n\n주의: Firebase Console에서 'Email/Password' 인증 방식이 활성화되어 있어야 합니다.`)) {
-                try {
-                    await auth.createUserWithEmailAndPassword(email, pw);
-                    alert("계정이 성공적으로 생성되었습니다! 이제 자동으로 로그인됩니다.");
-                } catch (error) {
-                    alert("계정 생성 실패: " + error.message);
-                    console.error(error);
-                }
-            }
-        }
+        // adminSignup 제거됨 — 관리자 계정은 Firebase Console에서만 생성 가능
 
         async function adminLogout() {
             try {
@@ -607,7 +581,7 @@
 
 
             // 3. Top Level %
-            const topLevelCount = filteredResults.filter(r => r.totalScore >= 16).length; // Level 5 is usually >80% (16/20)
+            const topLevelCount = filteredResults.filter(r => r.totalScore >= 19).length; // Level 5 = >90% (19~20/20)
             const topLevelPct = ((topLevelCount / filteredResults.length) * 100).toFixed(1);
             document.getElementById('stat-top-level').innerText = topLevelPct + "%";
 
@@ -640,7 +614,7 @@
                     <td class="px-6 py-4 font-medium text-gray-900">${r.grade}학년 ${r.class}반</td>
                     <td class="px-6 py-4">${r.totalScore}점</td>
                     <td class="px-6 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full ${r.totalScore >= 16 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
+                        <span class="px-2 py-1 text-xs rounded-full ${r.totalScore >= 17 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
                             ${r.levelTitle ? r.levelTitle.split('. ')[1] : '-'}
                         </span>
                     </td>
@@ -686,7 +660,7 @@
             }
 
             const prevAvg = prevResults.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / prevResults.length;
-            const prevTopCount = prevResults.filter(r => r.totalScore >= 16).length;
+            const prevTopCount = prevResults.filter(r => r.totalScore >= 19).length;
             const prevTopPct = (prevTopCount / prevResults.length) * 100;
 
             const scoreDiff = (currentAvg - prevAvg).toFixed(1);
@@ -720,10 +694,10 @@
                 // Simple deduction from score if levelTitle not reliable or want to recalculate
                 const acc = (r.totalScore / 20) * 100;
                 let idx = 0;
-                if (acc <= 20) idx = 0;
-                else if (acc <= 40) idx = 1;
-                else if (acc <= 60) idx = 2;
-                else if (acc <= 80) idx = 3;
+                if (acc <= 40) idx = 0;
+                else if (acc <= 60) idx = 1;
+                else if (acc <= 80) idx = 2;
+                else if (acc <= 90) idx = 3;
                 else idx = 4;
                 counts[idx]++;
             });
@@ -1145,11 +1119,16 @@
             });
             const weakQuestionText = weakQ ? `Q${weakQ.id}. ${weakQ.scenario}` : "데이터 부족으로 취약 문항 분석 불가";
 
-            // 3. Call API
+            // 3. Call API (with Firebase auth token)
             try {
+                const user = firebase.auth().currentUser;
+                const idToken = user ? await user.getIdToken() : null;
                 const res = await fetch('/api/consult-gemini', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(idToken && { 'Authorization': `Bearer ${idToken}` })
+                    },
                     body: JSON.stringify({
                         stats: { avgScore: avgScore },
                         weakCategory: weakCategory,
@@ -1163,7 +1142,7 @@
                 const data = await res.json();
 
                 // 4. Render Markdown
-                content.innerHTML = marked.parse(data.advice);
+                content.innerHTML = DOMPurify.sanitize(marked.parse(data.advice));
 
             } catch (e) {
                 console.error(e);

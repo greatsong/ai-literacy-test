@@ -65,7 +65,7 @@
   },
   {
     "id": 3,
-    "category": "Metacognition",
+    "category": "Meta_Cognition",
     "scenario": "수학 문제를 풀다가 막혔습니다. AI를 어떻게 활용할까요?",
     "options": [
       {
@@ -161,7 +161,7 @@
   },
   {
     "id": 6,
-    "category": "Metacognition",
+    "category": "Meta_Cognition",
     "scenario": "AI를 활용해 과제를 아주 빨리 끝냈습니다. 남은 시간은 어떻게 쓸까요?",
     "options": [
       {
@@ -257,7 +257,7 @@
   },
   {
     "id": 9,
-    "category": "Metacognition",
+    "category": "Meta_Cognition",
     "scenario": "친구와 팀 프로젝트를 하는데, AI를 사용하자는 의견이 나왔습니다.",
     "options": [
       {
@@ -353,7 +353,7 @@
   },
   {
     "id": 12,
-    "category": "Metacognition",
+    "category": "Meta_Cognition",
     "scenario": "AI와 대화하다가 AI가 나보다 훨씬 똑똑한 것 같아 위축됩니다.",
     "options": [
       {
@@ -449,7 +449,7 @@
   },
   {
     "id": 15,
-    "category": "Metacognition",
+    "category": "Meta_Cognition",
     "scenario": "내가 쓴 글을 AI에게 평가해달라고 했는데, 혹평을 받았습니다.",
     "options": [
       {
@@ -545,7 +545,7 @@
   },
   {
     "id": 18,
-    "category": "Metacognition",
+    "category": "Meta_Cognition",
     "scenario": "AI를 활용한 코딩 공부 중입니다. 코드를 다 짜주니까 너무 편하네요.",
     "options": [
       {

@@ -107,7 +107,7 @@
                 </h1>
                 <p class="text-sm text-gray-500">AI 리터러시 진단 시스템</p>
             </div>
-            <div class="text-xs text-gray-400 font-mono">Privacy-First: No Server</div>
+            <div class="text-xs text-gray-400 font-mono">익명 제출 | 개인정보 최소수집</div>
         </header>
 
         <!-- View: Welcome -->
@@ -336,38 +336,33 @@
                     <p class="text-xs text-indigo-800 font-bold mb-2 flex items-center">
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
-                                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4">
-                                    <p class="text-xs text-indigo-800 font-bold mb-2 flex items-center">
-                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
-                                            </path>
-                                        </svg>
-                                        선생님 제출용 리포트 생성
-                                    </p>
-                                    <p class="text-xs text-gray-600 mb-3">
-                                        리포트를 생성하여 <strong>선생님께 제출하고 피드백</strong>을 받아보세요!<br>
-                                        (입력한 정보는 제출 확인 용도로만 사용됩니다)
-                                    </p>
-                                    <div class="flex gap-2">
-                                        <input type="number" id="result-input-number" placeholder="학번(번호)"
-                                            class="w-24 p-2 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none">
-                                        <input type="text" id="result-input-name" placeholder="이름"
-                                            class="flex-grow p-2 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none">
-                                    </div>
-                                </div>
-
-                                <button id="btn-download"
-                                    class="btn-primary w-full flex items-center justify-center gap-2 shadow-lg hover:bg-indigo-700 transition-all cursor-pointer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                    </svg>
-                                    결과 리포트 저장 (PDF)
-                                </button>
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
+                            </path>
+                        </svg>
+                        선생님 제출용 리포트 생성
+                    </p>
+                    <p class="text-xs text-gray-600 mb-3">
+                        리포트를 생성하여 <strong>선생님께 제출하고 피드백</strong>을 받아보세요!<br>
+                        (입력한 정보는 제출 확인 용도로만 사용됩니다)
+                    </p>
+                    <div class="flex gap-2">
+                        <input type="number" id="result-input-number" placeholder="학번(번호)"
+                            class="w-24 p-2 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <input type="text" id="result-input-name" placeholder="이름"
+                            class="flex-grow p-2 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
                 </div>
+
+                <button id="btn-download"
+                    class="btn-primary w-full flex items-center justify-center gap-2 shadow-lg hover:bg-indigo-700 transition-all cursor-pointer">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    결과 리포트 저장 (PDF)
+                </button>
+            </div>
         </section>
 
     </main>
@@ -851,7 +846,7 @@
 
         // Result saving is handled below in a consolidated function
         function renderRadarChart(scores) {
-            const ctx = document.getElementById('radar-chart');
+            const ctx = document.getElementById('radarChart');
             if (!ctx) return;
 
             const labels = Object.keys(scores);
@@ -988,15 +983,12 @@
                 db.collection('results').add(data)
                     .then(() => {
                         console.log("✅ Result Saved Successfully");
-                        alert("데이터가 성공적으로 저장되었습니다!"); // Debug Alert
                     })
                     .catch((e) => {
                         console.error("❌ Error saving result: ", e);
-                        alert("데이터 저장 오류가 발생했습니다: " + e.message);
                     });
             } else {
                 console.warn("Firebase DB not connected");
-                alert("DB 연결 실패: 데이터베이스가 연결되지 않았습니다.");
             }
         }
 
