@@ -1111,7 +1111,7 @@
                     <td class="px-6 py-4">
                         <input type="checkbox" class="student-checkbox" data-id="${r.id}" onchange="updateDeleteButtonVisibility()">
                     </td>
-                    <td class="px-6 py-4 font-medium text-gray-900">${r.grade}학년 ${r.class}반</td>
+                    <td class="px-6 py-4 font-medium text-gray-900">${r.grade}학년 ${r.class}반${r.subjectClass ? ' (' + r.subjectClass + ')' : ''}</td>
                     <td class="px-6 py-4">${r.totalScore}점</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 text-xs rounded-full ${r.totalScore >= 17 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">

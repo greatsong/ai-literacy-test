@@ -191,6 +191,19 @@
                         </select>
                     </div>
                 </div>
+                <!-- 2학년 과목별 반 선택 (2학년 선택 시에만 표시) -->
+                <div id="grade2-class-wrapper" class="hidden max-w-sm mx-auto mb-4">
+                    <div class="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm">
+                        <label class="block text-xs font-bold text-amber-600 mb-2">📚 2학년 선택과목 반</label>
+                        <select id="input-class-grade2"
+                            class="w-full p-2 border border-amber-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-amber-500 outline-none bg-white">
+                            <option value="">-- 선택과목 반을 선택하세요 --</option>
+                            <option value="AI피지컬">인공지능과 피지컬컴퓨팅</option>
+                            <option value="AI기초204E">인공지능 기초204E</option>
+                            <option value="AI기초205B">인공지능 기초205B</option>
+                        </select>
+                    </div>
+                </div>
                 <!-- Privacy Notice -->
                 <p class="text-xs text-gray-400 mb-6 text-center">
                     * 입력하신 정보는 <strong>선생님께 제출하여 피드백</strong>을 받기 위한 용도로만 사용됩니다.
@@ -450,6 +463,20 @@
             }
         }
         // ... (Previous Code) ...
+
+        // 2학년 선택 시 과목별 반 선택 UI 토글
+        const gradeSelect = document.getElementById('input-grade');
+        const grade2ClassWrapper = document.getElementById('grade2-class-wrapper');
+        const grade2ClassSelect = document.getElementById('input-class-grade2');
+        gradeSelect.addEventListener('change', function() {
+            if (this.value === '2') {
+                grade2ClassWrapper.classList.remove('hidden');
+            } else {
+                grade2ClassWrapper.classList.add('hidden');
+                grade2ClassSelect.value = '';
+            }
+        });
+
         const startBtn = document.getElementById('btn-start');
         const prevBtn = document.getElementById('btn-prev');
         // const nextBtn = document.getElementById('btn-next');
@@ -1573,6 +1600,7 @@
             // Validation Start
             const grade = document.getElementById('input-grade').value;
             const cls = document.getElementById('input-class').value;
+            const grade2Class = document.getElementById('input-class-grade2').value;
             // Name/Number removed to protect privacy
 
             if (!grade || !cls) {
@@ -1580,7 +1608,15 @@
                 return;
             }
 
+            if (grade === '2' && !grade2Class) {
+                alert("2학년은 선택과목 반을 선택해주세요!");
+                return;
+            }
+
             studentInfo = { grade, class: cls };
+            if (grade === '2' && grade2Class) {
+                studentInfo.subjectClass = grade2Class;
+            }
 
             const btn = document.getElementById('btn-start');
             const originalText = btn.innerHTML;
@@ -1829,6 +1865,7 @@
                 saveResultToFirebase({
                     grade: studentInfo.grade,
                     class: studentInfo.class,
+                    subjectClass: studentInfo.subjectClass || null,
                     number: null, // Removed
                     name: "익명",   // Anonymous
                     totalScore,
@@ -1937,7 +1974,10 @@
             try {
                 // Ensure studentInfo reflects the latest entries
                 const infoEl = document.getElementById('report-student-info');
-                infoEl.innerText = `${studentInfo.grade}학년 ${studentInfo.class}반 ${number}번 ${name}`;
+                const classLabel = studentInfo.subjectClass
+                    ? `${studentInfo.class}반 (${studentInfo.subjectClass})`
+                    : `${studentInfo.class}반`;
+                infoEl.innerText = `${studentInfo.grade}학년 ${classLabel} ${number}번 ${name}`;
                 infoEl.classList.remove('hidden');
 
                 // Ensure images/fonts loaded
@@ -1960,7 +2000,10 @@
                 const pdf = new jsPDF('p', 'mm', [imgWidth, pageHeight]);
                 pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, pageHeight);
 
-                const filename = `${studentInfo.grade}${studentInfo.class}_${number}_${name}_AI리터러시.pdf`;
+                const classPart = studentInfo.subjectClass
+                    ? `${studentInfo.class}_${studentInfo.subjectClass}`
+                    : studentInfo.class;
+                const filename = `${studentInfo.grade}${classPart}_${number}_${name}_AI리터러시.pdf`;
                 pdf.save(filename);
 
             } catch (e) {
