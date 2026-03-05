@@ -12,6 +12,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // === 학교 설정 문서 (schools/{schoolId}) ===
+    match /schools/{schoolId} {
+      // 누구나 학교 목록 읽기 가능 (학생 학교 선택용)
+      allow read: if true;
+
+      // 관리자만 생성/수정/삭제 가능
+      allow create, update, delete: if request.auth != null
+        && request.auth.token.email != null;
+    }
+
     // === 학생 응답 (schools/{schoolId}/responses) ===
     match /schools/{schoolId}/responses/{docId} {
       // 학생: 익명 인증 후 응답 제출 가능

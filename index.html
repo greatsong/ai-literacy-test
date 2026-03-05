@@ -506,9 +506,26 @@
         }
         // --- Multi-tenant School Logic ---
         async function loadSchools() {
+            // 1차: Firestore에서 로드
+            if (typeof db !== 'undefined') {
+                try {
+                    const snap = await db.collection('schools').get();
+                    if (!snap.empty) {
+                        snap.forEach(doc => {
+                            schoolsData[doc.id] = { id: doc.id, ...doc.data() };
+                        });
+                        console.log("Loaded " + Object.keys(schoolsData).length + " schools from Firestore");
+                        return;
+                    }
+                } catch (e) {
+                    console.warn("Firestore schools 로드 실패, fallback 사용:", e);
+                }
+            }
+            // 2차: schools.json fallback
             try {
                 const res = await fetch('schools.json');
                 schoolsData = await res.json();
+                console.log("Loaded schools from schools.json fallback");
             } catch (e) {
                 console.error("schools.json 로드 실패:", e);
                 schoolsData = {};

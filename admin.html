@@ -307,22 +307,118 @@
             </div>
         </div>
 
+        <!-- School Management Panel (Super Admin Only) -->
+        <div id="school-mgmt-panel" class="card mt-8 hidden border-indigo-100">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-gray-700 text-lg">학교 관리 (슈퍼 관리자 전용)</h3>
+                <button onclick="toggleSchoolForm(true)"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700">
+                    + 새 학교 추가
+                </button>
+            </div>
+
+            <!-- School Form (Add/Edit) -->
+            <div id="school-form" class="hidden bg-indigo-50 rounded-xl p-6 mb-6 border border-indigo-200">
+                <h4 id="school-form-title" class="font-bold text-indigo-900 mb-4">새 학교 등록</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">학교 코드 (영문, 하이픈)</label>
+                        <input type="text" id="sf-id" placeholder="예: jeonju-jungang"
+                            class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">학교 이름</label>
+                        <input type="text" id="sf-name" placeholder="예: 전주중앙여자고등학교"
+                            class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">담당 선생님</label>
+                        <input type="text" id="sf-teacher" placeholder="예: 홍길동 선생님"
+                            class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">태그라인</label>
+                        <input type="text" id="sf-tagline" placeholder="예: 홍길동 선생님 & AI와 함께하는 성장 여행"
+                            class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">학년 (쉼표 구분)</label>
+                        <input type="text" id="sf-grades" placeholder="1,2,3" value="1,2,3"
+                            class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">반 수</label>
+                        <input type="number" id="sf-classes" placeholder="10" value="10"
+                            class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 mb-1">관리자 이메일 (쉼표로 여러 명 가능)</label>
+                        <input type="text" id="sf-admins" placeholder="teacher@school.kr, teacher2@school.kr"
+                            class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button onclick="saveSchool()"
+                        class="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700">
+                        저장
+                    </button>
+                    <button onclick="toggleSchoolForm(false)"
+                        class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300">
+                        취소
+                    </button>
+                </div>
+            </div>
+
+            <!-- School List -->
+            <div id="school-list-table" class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3">학교 코드</th>
+                            <th class="px-4 py-3">학교명</th>
+                            <th class="px-4 py-3">담당 선생님</th>
+                            <th class="px-4 py-3">관리자</th>
+                            <th class="px-4 py-3">학생 URL</th>
+                            <th class="px-4 py-3">작업</th>
+                        </tr>
+                    </thead>
+                    <tbody id="school-mgmt-body">
+                        <!-- Injected -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
     <script>
         // --- Multi-tenant State ---
         let adminSchoolsData = {};
         let currentAdminSchool = null; // selected school ID
+        let isSuperAdmin = false;
+        let currentUserEmail = '';
 
         // Super admin emails (can see all schools)
         const SUPER_ADMINS = ['greatsong@gmail.com'];
 
-        // School-admin mapping (email -> allowed school IDs)
-        const SCHOOL_ADMINS = {
-            // 'teacher@jeonju.kr': ['jeonju-jungang']
-        };
-
         async function loadAdminSchools() {
+            adminSchoolsData = {};
+            // 1차: Firestore에서 로드
+            if (typeof db !== 'undefined') {
+                try {
+                    const snap = await db.collection('schools').get();
+                    if (!snap.empty) {
+                        snap.forEach(doc => {
+                            adminSchoolsData[doc.id] = { id: doc.id, ...doc.data() };
+                        });
+                        console.log("Loaded " + Object.keys(adminSchoolsData).length + " schools from Firestore");
+                        return;
+                    }
+                } catch (e) {
+                    console.warn("Firestore schools load failed, using fallback:", e);
+                }
+            }
+            // 2차: schools.json fallback
             try {
                 const res = await fetch('schools.json');
                 adminSchoolsData = await res.json();
@@ -331,26 +427,33 @@
             }
         }
 
-        function populateSchoolSelector(userEmail) {
+        async function populateSchoolSelector(userEmail) {
             const select = document.getElementById('admin-school-select');
             select.innerHTML = '';
 
-            const isSuperAdmin = SUPER_ADMINS.includes(userEmail);
-            const allowedSchools = SCHOOL_ADMINS[userEmail] || [];
+            currentUserEmail = userEmail;
+            isSuperAdmin = SUPER_ADMINS.includes(userEmail);
 
             let schoolIds = [];
             if (isSuperAdmin) {
-                // Super admin: show all schools + "전체" option
                 const allOpt = document.createElement('option');
                 allOpt.value = '__all__';
                 allOpt.textContent = '전체 학교';
                 select.appendChild(allOpt);
                 schoolIds = Object.keys(adminSchoolsData);
-            } else if (allowedSchools.length > 0) {
-                schoolIds = allowedSchools;
+                // Show management panel
+                document.getElementById('school-mgmt-panel').classList.remove('hidden');
+                renderSchoolMgmtTable();
             } else {
-                // Fallback: show all (for now, until SCHOOL_ADMINS is populated)
-                schoolIds = Object.keys(adminSchoolsData);
+                // Find schools where this email is listed as admin
+                schoolIds = Object.keys(adminSchoolsData).filter(id => {
+                    const school = adminSchoolsData[id];
+                    return school.admins && school.admins.includes(userEmail);
+                });
+                // Fallback: if no admins field set yet, show all
+                if (schoolIds.length === 0) {
+                    schoolIds = Object.keys(adminSchoolsData);
+                }
             }
 
             schoolIds.forEach(id => {
@@ -362,7 +465,6 @@
                 select.appendChild(opt);
             });
 
-            // Auto-select first school
             if (select.options.length > 0) {
                 if (isSuperAdmin) {
                     select.value = '__all__';
@@ -370,6 +472,123 @@
                     select.value = schoolIds[0];
                 }
                 currentAdminSchool = select.value;
+            }
+        }
+
+        // --- School Management (Super Admin) ---
+        let editingSchoolId = null;
+
+        function toggleSchoolForm(show) {
+            document.getElementById('school-form').classList.toggle('hidden', !show);
+            if (!show) {
+                editingSchoolId = null;
+                document.getElementById('school-form-title').textContent = '새 학교 등록';
+                ['sf-id', 'sf-name', 'sf-teacher', 'sf-tagline', 'sf-admins'].forEach(id =>
+                    document.getElementById(id).value = ''
+                );
+                document.getElementById('sf-grades').value = '1,2,3';
+                document.getElementById('sf-classes').value = '10';
+                document.getElementById('sf-id').disabled = false;
+            }
+        }
+
+        function editSchool(schoolId) {
+            const school = adminSchoolsData[schoolId];
+            if (!school) return;
+            editingSchoolId = schoolId;
+
+            document.getElementById('school-form-title').textContent = `학교 수정: ${school.schoolName || schoolId}`;
+            document.getElementById('sf-id').value = schoolId;
+            document.getElementById('sf-id').disabled = true;
+            document.getElementById('sf-name').value = school.schoolName || '';
+            document.getElementById('sf-teacher').value = school.teacherName || '';
+            document.getElementById('sf-tagline').value = school.tagline || '';
+            document.getElementById('sf-grades').value = (school.grades || [1,2,3]).join(',');
+            const defaultClasses = school.classes && school.classes['default'];
+            document.getElementById('sf-classes').value = typeof defaultClasses === 'object'
+                ? defaultClasses.count : (defaultClasses || 10);
+            document.getElementById('sf-admins').value = (school.admins || []).join(', ');
+
+            toggleSchoolForm(true);
+        }
+
+        async function saveSchool() {
+            const id = document.getElementById('sf-id').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+            const name = document.getElementById('sf-name').value.trim();
+            const teacher = document.getElementById('sf-teacher').value.trim();
+            const tagline = document.getElementById('sf-tagline').value.trim();
+            const grades = document.getElementById('sf-grades').value.split(',').map(g => parseInt(g.trim())).filter(g => !isNaN(g));
+            const classCount = parseInt(document.getElementById('sf-classes').value) || 10;
+            const admins = document.getElementById('sf-admins').value.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+
+            if (!id) { alert('학교 코드를 입력해주세요.'); return; }
+            if (!name) { alert('학교 이름을 입력해주세요.'); return; }
+
+            const schoolData = {
+                schoolName: name,
+                teacherName: teacher || '선생님',
+                tagline: tagline || `${teacher || ''} & AI와 함께하는 성장 여행`.trim(),
+                grades: grades.length > 0 ? grades : [1, 2, 3],
+                classes: { default: classCount },
+                admins: admins,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            try {
+                await db.collection('schools').doc(id).set(schoolData, { merge: true });
+                alert(editingSchoolId ? '학교 정보가 수정되었습니다.' : `학교 "${name}"이(가) 등록되었습니다!\n\n학생 접속 URL:\n${location.origin}?school=${id}`);
+                toggleSchoolForm(false);
+                await loadAdminSchools();
+                populateSchoolSelector(currentUserEmail);
+            } catch (e) {
+                console.error("School save error:", e);
+                alert('저장 실패: ' + e.message);
+            }
+        }
+
+        async function deleteSchool(schoolId) {
+            const school = adminSchoolsData[schoolId];
+            const name = school ? school.schoolName : schoolId;
+            if (!confirm(`"${name}" 학교를 삭제하시겠습니까?\n(학생 응답 데이터는 유지됩니다)`)) return;
+
+            try {
+                await db.collection('schools').doc(schoolId).delete();
+                alert('삭제되었습니다.');
+                await loadAdminSchools();
+                populateSchoolSelector(currentUserEmail);
+            } catch (e) {
+                alert('삭제 실패: ' + e.message);
+            }
+        }
+
+        function renderSchoolMgmtTable() {
+            const tbody = document.getElementById('school-mgmt-body');
+            tbody.innerHTML = '';
+            const baseUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '');
+
+            Object.values(adminSchoolsData).forEach(school => {
+                const tr = document.createElement('tr');
+                tr.className = 'bg-white border-b hover:bg-gray-50';
+                const studentUrl = `${baseUrl}?school=${school.id}`;
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-mono text-xs font-bold text-indigo-600">${school.id}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900">${school.schoolName || '-'}</td>
+                    <td class="px-4 py-3">${school.teacherName || '-'}</td>
+                    <td class="px-4 py-3 text-xs">${(school.admins || []).join(', ') || '<span class="text-gray-300">미등록</span>'}</td>
+                    <td class="px-4 py-3">
+                        <button onclick="navigator.clipboard.writeText('${studentUrl}').then(() => alert('복사됨!'))"
+                            class="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline">URL 복사</button>
+                    </td>
+                    <td class="px-4 py-3">
+                        <button onclick="editSchool('${school.id}')" class="text-xs text-blue-600 hover:text-blue-800 font-bold mr-2">수정</button>
+                        <button onclick="deleteSchool('${school.id}')" class="text-xs text-red-500 hover:text-red-700 font-bold">삭제</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            if (Object.keys(adminSchoolsData).length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">등록된 학교가 없습니다. "새 학교 추가"를 눌러주세요.</td></tr>';
             }
         }
 
