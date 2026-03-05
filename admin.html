@@ -183,7 +183,7 @@
                 <div class="stat-label flex justify-between">평균 점수 <span id="delta-avg-score"
                         class="text-xs font-bold"></span></div>
                 <div id="stat-avg-score" class="stat-value">0.0</div>
-                <div class="text-xs text-gray-400 mt-1">/ 20점 만점</div>
+                <div class="text-xs text-gray-400 mt-1">/ 60점 만점</div>
             </div>
             <div class="card">
                 <div class="stat-label">가장 부족한 역량</div>
@@ -1081,7 +1081,7 @@
 
 
             // 3. Top Level %
-            const topLevelCount = filteredResults.filter(r => r.totalScore >= 19).length; // Level 5 = >90% (19~20/20)
+            const topLevelCount = filteredResults.filter(r => r.totalScore >= 54).length; // Level 5 = >90% (54~60/60)
             const topLevelPct = ((topLevelCount / filteredResults.length) * 100).toFixed(1);
             document.getElementById('stat-top-level').innerText = topLevelPct + "%";
 
@@ -1160,7 +1160,7 @@
             }
 
             const prevAvg = prevResults.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / prevResults.length;
-            const prevTopCount = prevResults.filter(r => r.totalScore >= 19).length;
+            const prevTopCount = prevResults.filter(r => r.totalScore >= 54).length;
             const prevTopPct = (prevTopCount / prevResults.length) * 100;
 
             const scoreDiff = (currentAvg - prevAvg).toFixed(1);
@@ -1192,7 +1192,7 @@
             const counts = [0, 0, 0, 0, 0]; // L1 to L5
             filteredResults.forEach(r => {
                 // Simple deduction from score if levelTitle not reliable or want to recalculate
-                const acc = (r.totalScore / 20) * 100;
+                const acc = (r.totalScore / 60) * 100;
                 let idx = 0;
                 if (acc <= 40) idx = 0;
                 else if (acc <= 60) idx = 1;
@@ -1346,8 +1346,8 @@
                     scales: {
                         y: {
                             beginAtZero: true,
-                            max: 20,
-                            ticks: { stepSize: 5 }
+                            max: 60,
+                            ticks: { stepSize: 10 }
                         }
                     }
                 }
