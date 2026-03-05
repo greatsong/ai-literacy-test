@@ -144,6 +144,21 @@
             </div>
         </header>
 
+        <!-- Pending Requests Panel (Super Admin) -->
+        <div id="pending-panel" class="hidden bg-white rounded-2xl shadow-lg p-6 mb-8 border-l-4 border-amber-400">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
+                    승인 대기 중인 신청
+                    <span id="pending-count" class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">0</span>
+                </h3>
+                <button onclick="loadPendingRequests()" class="text-xs text-gray-400 hover:text-gray-600">새로고침</button>
+            </div>
+            <div id="pending-list" class="space-y-3">
+                <p class="text-sm text-gray-400 text-center py-4">대기 중인 신청이 없습니다.</p>
+            </div>
+        </div>
+
         <!-- Filters -->
         <div class="card mb-8 flex flex-wrap gap-4 items-center bg-indigo-50 border-indigo-100">
             <div class="flex items-center gap-2">
@@ -389,21 +404,6 @@
             </div>
         </div>
 
-        <!-- Pending Requests Panel (Super Admin) -->
-        <div id="pending-panel" class="hidden bg-white rounded-2xl shadow-lg p-6 mb-8 border-l-4 border-amber-400">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-                    승인 대기 중인 신청
-                    <span id="pending-count" class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">0</span>
-                </h3>
-                <button onclick="loadPendingRequests()" class="text-xs text-gray-400 hover:text-gray-600">새로고침</button>
-            </div>
-            <div id="pending-list" class="space-y-3">
-                <p class="text-sm text-gray-400 text-center py-4">대기 중인 신청이 없습니다.</p>
-            </div>
-        </div>
-
     </div>
 
     <script>
@@ -586,12 +586,12 @@
             const countEl = document.getElementById('pending-count');
 
             try {
-                const snap = await db.collection('pendingSchools')
-                    .where('status', '==', 'pending')
-                    .orderBy('requestedAt', 'desc')
-                    .get();
+                const snap = await db.collection('pendingSchools').get();
 
-                pendingRequests = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                pendingRequests = snap.docs
+                    .map(doc => ({ id: doc.id, ...doc.data() }))
+                    .filter(r => r.status === 'pending')
+                    .sort((a, b) => (b.requestedAt?.seconds || 0) - (a.requestedAt?.seconds || 0));
                 countEl.textContent = pendingRequests.length;
 
                 if (pendingRequests.length === 0) {
