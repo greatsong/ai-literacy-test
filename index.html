@@ -1035,7 +1035,21 @@
         }
 
         async function loadDefaultQuestions() {
-            console.log("Loading questions (Hardcoded)...");
+            // questions.json에서 로드 시도, 실패 시 FALLBACK 사용
+            try {
+                const response = await fetch('questions.json');
+                if (response.ok) {
+                    const rawData = await response.json();
+                    questions = shuffleArray(rawData);
+                    console.log("✅ Loaded " + questions.length + " questions from questions.json");
+                    return;
+                }
+            } catch (e) {
+                console.warn("questions.json 로드 실패, FALLBACK 데이터 사용:", e);
+            }
+
+            // FALLBACK: 하드코딩 데이터
+            console.log("Loading questions (Fallback)...");
             const rawData = [
                 {
                   "id": 1,
