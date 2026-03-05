@@ -1,0 +1,26 @@
+{
+  "default": {
+    "id": "default",
+    "schoolName": "",
+    "teacherName": "석리송 선생님",
+    "tagline": "석리송 선생님 & AI와 함께하는 성장 여행",
+    "grades": [1, 2, 3],
+    "classes": {
+      "default": 12,
+      "2": {
+        "count": 12,
+        "subjectClasses": ["AI피지컬", "AI기초204E", "AI기초205B"]
+      }
+    }
+  },
+  "jeonju-jungang": {
+    "id": "jeonju-jungang",
+    "schoolName": "전주중앙여자고등학교",
+    "teacherName": "선생님",
+    "tagline": "AI와 함께하는 성장 여행",
+    "grades": [1, 2, 3],
+    "classes": {
+      "default": 12
+    }
+  }
+}

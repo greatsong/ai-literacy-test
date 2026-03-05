@@ -116,7 +116,13 @@
                 <h1 class="text-2xl font-bold text-slate-800">📊 AI 협업 역량 진단 - 선생님 대시보드</h1>
                 <p class="text-slate-500 text-sm">학생들의 진단 결과를 입체적으로 분석합니다.</p>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 flex-wrap justify-end">
+                <!-- School Selector -->
+                <select id="admin-school-select"
+                    class="px-3 py-2 border border-indigo-300 rounded-lg text-sm font-bold text-indigo-700 bg-indigo-50 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    onchange="onSchoolChange()">
+                    <option value="">학교 선택...</option>
+                </select>
                 <button onclick="fetchData()"
                     class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center shadow-sm">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -127,7 +133,7 @@
                     데이터 새로고침
                 </button>
                 <button onclick="resetData()"
-                    class="px-4 py-2 bg-white border border-red-200 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 flex items-center shadow-sm ml-2">
+                    class="px-4 py-2 bg-white border border-red-200 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 flex items-center shadow-sm">
                     데이터 초기화
                 </button>
                 <button onclick="adminLogout()"
@@ -304,6 +310,81 @@
     </div>
 
     <script>
+        // --- Multi-tenant State ---
+        let adminSchoolsData = {};
+        let currentAdminSchool = null; // selected school ID
+
+        // Super admin emails (can see all schools)
+        const SUPER_ADMINS = ['greatsong@gmail.com'];
+
+        // School-admin mapping (email -> allowed school IDs)
+        const SCHOOL_ADMINS = {
+            // 'teacher@jeonju.kr': ['jeonju-jungang']
+        };
+
+        async function loadAdminSchools() {
+            try {
+                const res = await fetch('schools.json');
+                adminSchoolsData = await res.json();
+            } catch (e) {
+                console.error("schools.json load failed:", e);
+            }
+        }
+
+        function populateSchoolSelector(userEmail) {
+            const select = document.getElementById('admin-school-select');
+            select.innerHTML = '';
+
+            const isSuperAdmin = SUPER_ADMINS.includes(userEmail);
+            const allowedSchools = SCHOOL_ADMINS[userEmail] || [];
+
+            let schoolIds = [];
+            if (isSuperAdmin) {
+                // Super admin: show all schools + "전체" option
+                const allOpt = document.createElement('option');
+                allOpt.value = '__all__';
+                allOpt.textContent = '전체 학교';
+                select.appendChild(allOpt);
+                schoolIds = Object.keys(adminSchoolsData);
+            } else if (allowedSchools.length > 0) {
+                schoolIds = allowedSchools;
+            } else {
+                // Fallback: show all (for now, until SCHOOL_ADMINS is populated)
+                schoolIds = Object.keys(adminSchoolsData);
+            }
+
+            schoolIds.forEach(id => {
+                const school = adminSchoolsData[id];
+                if (!school) return;
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = school.schoolName || school.teacherName || id;
+                select.appendChild(opt);
+            });
+
+            // Auto-select first school
+            if (select.options.length > 0) {
+                if (isSuperAdmin) {
+                    select.value = '__all__';
+                } else {
+                    select.value = schoolIds[0];
+                }
+                currentAdminSchool = select.value;
+            }
+        }
+
+        function onSchoolChange() {
+            currentAdminSchool = document.getElementById('admin-school-select').value;
+            fetchData();
+        }
+
+        function getCollectionPath() {
+            if (!currentAdminSchool || currentAdminSchool === '__all__') {
+                return null; // Will need to fetch from all schools
+            }
+            return `schools/${currentAdminSchool}/responses`;
+        }
+
         // --- Questions Data (Embedded for Analysis) ---
         const QUESTIONS_DATA = [
             {
@@ -855,10 +936,12 @@
             if (typeof firebase !== 'undefined') {
                 auth = firebase.auth();
 
-                auth.onAuthStateChanged((user) => {
+                auth.onAuthStateChanged(async (user) => {
                     if (user) {
                         document.getElementById('auth-overlay').classList.add('hidden');
                         document.getElementById('dashboard').classList.remove('hidden');
+                        await loadAdminSchools();
+                        populateSchoolSelector(user.email);
                         fetchData();
                     } else {
                         document.getElementById('auth-overlay').classList.remove('hidden');
@@ -898,37 +981,71 @@
         let allResults = [];
         let filteredResults = [];
 
+        function parseDoc(doc) {
+            const data = doc.data();
+            data.id = doc.id;
+            data._collectionPath = doc.ref.parent.path; // Store for deletion
+            if (data.timestamp && data.timestamp.toDate) {
+                data.rDate = data.timestamp.toDate();
+            } else if (data.timestamp) {
+                data.rDate = new Date(data.timestamp);
+            } else {
+                data.rDate = new Date(0);
+            }
+            return data;
+        }
+
         async function fetchData() {
             if (typeof db === 'undefined') return;
 
             try {
-                // Try to fetch with timestamp ordering, but fallback if index is missing or doesn't exist
-                let snapshot;
-                try {
-                    snapshot = await db.collection('results').orderBy('timestamp', 'desc').get();
-                } catch (err) {
-                    console.warn("Timestamp ordering failed, fetching without order:", err);
-                    snapshot = await db.collection('results').get();
-                }
+                const collectionPath = getCollectionPath();
 
-                allResults = snapshot.docs.map(doc => {
-                    const data = doc.data();
-                    data.id = doc.id; // Store Doc ID for deletion
-                    // Ensure timestamp is a Date object even if coming from different formats
-                    if (data.timestamp && data.timestamp.toDate) {
-                        data.rDate = data.timestamp.toDate();
-                    } else if (data.timestamp) {
-                        data.rDate = new Date(data.timestamp);
-                    } else {
-                        data.rDate = new Date(0); // Fallback for old data
+                if (collectionPath) {
+                    // Single school
+                    let snapshot;
+                    try {
+                        snapshot = await db.collection(collectionPath).orderBy('timestamp', 'desc').get();
+                    } catch (err) {
+                        console.warn("Timestamp ordering failed, fetching without order:", err);
+                        snapshot = await db.collection(collectionPath).get();
                     }
-                    return data;
-                });
+                    allResults = snapshot.docs.map(parseDoc);
+                } else {
+                    // All schools (super admin) or legacy
+                    allResults = [];
+                    const schoolIds = Object.keys(adminSchoolsData);
+
+                    // Fetch from all schools
+                    const promises = schoolIds.map(async (sid) => {
+                        try {
+                            const snap = await db.collection(`schools/${sid}/responses`).get();
+                            return snap.docs.map(parseDoc);
+                        } catch (e) {
+                            console.warn(`Failed to fetch school ${sid}:`, e);
+                            return [];
+                        }
+                    });
+
+                    // Also fetch legacy 'results' collection
+                    promises.push((async () => {
+                        try {
+                            const snap = await db.collection('results').get();
+                            return snap.docs.map(doc => {
+                                const d = parseDoc(doc);
+                                d.schoolId = d.schoolId || 'default';
+                                return d;
+                            });
+                        } catch (e) { return []; }
+                    })());
+
+                    const results = await Promise.all(promises);
+                    allResults = results.flat();
+                }
 
                 applyFilters();
             } catch (e) {
                 console.error("Error fetching data:", e);
-                // Only alert if it's a real failure (not just a missing order)
                 if (allResults.length === 0) {
                     alert("데이터를 서버에서 가져오는데 문제가 발생했습니다. (권한 또는 네트워크 확인)");
                 }
@@ -945,7 +1062,8 @@
                 const batch = db.batch();
                 checkboxes.forEach(cb => {
                     const docId = cb.getAttribute('data-id');
-                    batch.delete(db.collection('results').doc(docId));
+                    const colPath = cb.getAttribute('data-collection') || getCollectionPath() || 'results';
+                    batch.delete(db.collection(colPath).doc(docId));
                 });
                 await batch.commit();
                 alert("선택한 데이터가 삭제되었습니다.");
@@ -976,21 +1094,31 @@
         }
 
         async function resetData() {
-            if (!confirm("⚠️ 정말로 모든 학생 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.")) return;
-            if (!confirm("다시 한번 확인합니다. 전체 결과 데이터가 서버에서 영구적으로 삭제됩니다. 계속하시겠습니까?")) return;
+            const collectionPath = getCollectionPath();
+            const schoolLabel = currentAdminSchool === '__all__' ? '전체' : (adminSchoolsData[currentAdminSchool]?.schoolName || currentAdminSchool);
+            if (!confirm(`⚠️ [${schoolLabel}] 학생 데이터를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+            if (!confirm("다시 한번 확인합니다. 결과 데이터가 서버에서 영구적으로 삭제됩니다. 계속하시겠습니까?")) return;
 
             try {
-                const snapshot = await db.collection('results').get();
-                const batch = db.batch();
-                snapshot.docs.forEach(doc => {
-                    batch.delete(doc.ref);
-                });
-                await batch.commit();
-                alert("모든 데이터가 삭제되었습니다.");
+                if (collectionPath) {
+                    const snapshot = await db.collection(collectionPath).get();
+                    const batch = db.batch();
+                    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                } else {
+                    // All schools
+                    for (const sid of Object.keys(adminSchoolsData)) {
+                        const snap = await db.collection(`schools/${sid}/responses`).get();
+                        const batch = db.batch();
+                        snap.docs.forEach(doc => batch.delete(doc.ref));
+                        await batch.commit();
+                    }
+                }
+                alert("데이터가 삭제되었습니다.");
                 fetchData();
             } catch (e) {
                 console.error("Error resetting data:", e);
-                alert("데이터 삭제 중 오류가 발생했습니다: " + e.message + "\n(Firestore 보안 규칙에서 삭제 권한이 있는지 확인해주세요)");
+                alert("데이터 삭제 중 오류가 발생했습니다: " + e.message);
             }
         }
 
@@ -1107,14 +1235,15 @@
             sortedResults.forEach(r => {
                 const tr = document.createElement('tr');
                 tr.className = "bg-white border-b hover:bg-gray-50";
+                const schoolTag = currentAdminSchool === '__all__' && r.schoolId ? ` <span class="text-xs text-indigo-400">[${adminSchoolsData[r.schoolId]?.schoolName || r.schoolId}]</span>` : '';
                 tr.innerHTML = `
                     <td class="px-6 py-4">
-                        <input type="checkbox" class="student-checkbox" data-id="${r.id}" onchange="updateDeleteButtonVisibility()">
+                        <input type="checkbox" class="student-checkbox" data-id="${r.id}" data-collection="${r._collectionPath || ''}" onchange="updateDeleteButtonVisibility()">
                     </td>
-                    <td class="px-6 py-4 font-medium text-gray-900">${r.grade}학년 ${r.class}반${r.subjectClass ? ' (' + r.subjectClass + ')' : ''}</td>
+                    <td class="px-6 py-4 font-medium text-gray-900">${r.grade}학년 ${r.class}반${r.subjectClass ? ' (' + r.subjectClass + ')' : ''}${schoolTag}</td>
                     <td class="px-6 py-4">${r.totalScore}점</td>
                     <td class="px-6 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full ${r.totalScore >= 17 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
+                        <span class="px-2 py-1 text-xs rounded-full ${r.totalScore >= 54 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
                             ${r.levelTitle ? r.levelTitle.split('. ')[1] : '-'}
                         </span>
                     </td>

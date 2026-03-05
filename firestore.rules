@@ -1,0 +1,36 @@
+// Firestore Security Rules
+// Firebase Console > Firestore > Rules 에 아래 내용을 붙여넣으세요.
+//
+// 적용 방법:
+// 1. https://console.firebase.google.com 접속
+// 2. ai-literacy-test 프로젝트 선택
+// 3. Firestore Database > Rules 탭
+// 4. 아래 내용 전체를 복사하여 붙여넣기
+// 5. "Publish" 클릭
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // === 학생 응답 (schools/{schoolId}/responses) ===
+    match /schools/{schoolId}/responses/{docId} {
+      // 학생: 익명 인증 후 응답 제출 가능
+      allow create: if request.auth != null;
+
+      // 관리자: 인증된 사용자만 조회/삭제 가능
+      allow read, delete: if request.auth != null
+        && request.auth.token.email != null;
+
+      // 수정은 불허 (제출 후 변경 방지)
+      allow update: if false;
+    }
+
+    // === 레거시 호환 (기존 results 컬렉션) ===
+    match /results/{docId} {
+      allow create: if request.auth != null;
+      allow read, delete: if request.auth != null
+        && request.auth.token.email != null;
+      allow update: if false;
+    }
+  }
+}

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>데이터 마이그레이션 도구</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="firebase-env.js"></script>
+    <script src="firebaseConfig.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-lg p-8 max-w-lg w-full">
+        <h1 class="text-xl font-bold mb-2">데이터 마이그레이션 도구</h1>
+        <p class="text-sm text-gray-500 mb-6">
+            기존 <code>results</code> 컬렉션의 데이터를
+            <code>schools/default/responses</code>로 복사합니다.
+        </p>
+
+        <div id="auth-section">
+            <div class="space-y-3 mb-4">
+                <input type="email" id="email" placeholder="관리자 이메일"
+                    class="w-full px-4 py-2 border rounded-lg text-sm">
+                <input type="password" id="password" placeholder="비밀번호"
+                    class="w-full px-4 py-2 border rounded-lg text-sm">
+                <button onclick="login()"
+                    class="w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700">
+                    로그인
+                </button>
+            </div>
+        </div>
+
+        <div id="migrate-section" class="hidden">
+            <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
+                <p class="text-sm text-indigo-800 font-medium" id="status">로그인 완료. 마이그레이션 준비됨.</p>
+            </div>
+
+            <div class="space-y-3">
+                <button onclick="preview()"
+                    class="w-full bg-gray-200 text-gray-700 py-2 rounded-lg font-bold hover:bg-gray-300">
+                    1단계: 미리보기 (몇 건인지 확인)
+                </button>
+                <button onclick="migrate()"
+                    class="w-full bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700">
+                    2단계: 마이그레이션 실행
+                </button>
+            </div>
+
+            <div id="log" class="mt-6 bg-gray-50 rounded-lg p-4 text-xs font-mono max-h-64 overflow-y-auto hidden">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const auth = firebase.auth();
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+
+        function log(msg) {
+            logEl.classList.remove('hidden');
+            logEl.innerHTML += msg + '<br>';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const pw = document.getElementById('password').value;
+            try {
+                await auth.signInWithEmailAndPassword(email, pw);
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('migrate-section').classList.remove('hidden');
+            } catch (e) {
+                alert('로그인 실패: ' + e.message);
+            }
+        }
+
+        async function preview() {
+            statusEl.textContent = '기존 데이터 확인 중...';
+            try {
+                const oldSnap = await db.collection('results').get();
+                const newSnap = await db.collection('schools/default/responses').get();
+                statusEl.textContent =
+                    `results: ${oldSnap.size}건 / schools/default/responses: ${newSnap.size}건`;
+                log(`기존 results 컬렉션: ${oldSnap.size}건`);
+                log(`새 schools/default/responses: ${newSnap.size}건`);
+            } catch (e) {
+                statusEl.textContent = '오류: ' + e.message;
+                log('ERROR: ' + e.message);
+            }
+        }
+
+        async function migrate() {
+            if (!confirm('results 컬렉션의 모든 데이터를 schools/default/responses로 복사합니다.\n(원본은 삭제되지 않습니다)\n\n진행하시겠습니까?')) return;
+
+            statusEl.textContent = '마이그레이션 진행 중...';
+            log('--- 마이그레이션 시작 ---');
+
+            try {
+                const snapshot = await db.collection('results').get();
+                log(`총 ${snapshot.size}건 처리 예정`);
+
+                let success = 0;
+                let skipped = 0;
+
+                // Batch write (max 500 per batch)
+                const docs = snapshot.docs;
+                for (let i = 0; i < docs.length; i += 450) {
+                    const batch = db.batch();
+                    const chunk = docs.slice(i, i + 450);
+
+                    chunk.forEach(doc => {
+                        const data = doc.data();
+                        data.schoolId = data.schoolId || 'default';
+                        data._migratedFrom = 'results/' + doc.id;
+                        const newRef = db.collection('schools/default/responses').doc();
+                        batch.set(newRef, data);
+                    });
+
+                    await batch.commit();
+                    success += chunk.length;
+                    log(`${success}/${docs.length}건 완료`);
+                }
+
+                statusEl.textContent = `마이그레이션 완료! ${success}건 복사됨.`;
+                log(`--- 완료: ${success}건 복사, ${skipped}건 건너뜀 ---`);
+                log('원본 results 컬렉션은 유지됩니다. 확인 후 수동 삭제하세요.');
+            } catch (e) {
+                statusEl.textContent = '오류 발생: ' + e.message;
+                log('ERROR: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
