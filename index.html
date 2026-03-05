@@ -539,10 +539,13 @@
                 const btn = document.createElement('button');
                 const displayName = school.schoolName || school.teacherName;
                 btn.className = "w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left flex justify-between items-center";
-                btn.innerHTML = `
-                    <span>${displayName}</span>
-                    <span class="text-xs text-gray-400">${school.id}</span>
-                `;
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = displayName;
+                const idSpan = document.createElement('span');
+                idSpan.className = 'text-xs text-gray-400';
+                idSpan.textContent = school.id;
+                btn.appendChild(nameSpan);
+                btn.appendChild(idSpan);
                 btn.onclick = () => applySchool(school.id);
                 container.appendChild(btn);
             });

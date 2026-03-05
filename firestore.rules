@@ -12,14 +12,29 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // 슈퍼관리자 판별 함수
+    function isSuperAdmin() {
+      return request.auth != null
+        && request.auth.token.email in ['greatsong@gmail.com', 'greatsong21@gmail.com'];
+    }
+
+    // 해당 학교의 관리자인지 판별
+    function isSchoolAdmin(schoolId) {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email in get(/databases/$(database)/documents/schools/$(schoolId)).data.admins;
+    }
+
     // === 학교 설정 문서 (schools/{schoolId}) ===
     match /schools/{schoolId} {
       // 누구나 학교 목록 읽기 가능 (학생 학교 선택용)
       allow read: if true;
 
-      // 관리자만 생성/수정/삭제 가능
-      allow create, update, delete: if request.auth != null
-        && request.auth.token.email != null;
+      // 슈퍼관리자만 생성 가능
+      allow create: if isSuperAdmin();
+
+      // 해당 학교 관리자 또는 슈퍼관리자만 수정/삭제 가능
+      allow update, delete: if isSuperAdmin() || isSchoolAdmin(schoolId);
     }
 
     // === 학생 응답 (schools/{schoolId}/responses) ===
@@ -27,9 +42,8 @@ service cloud.firestore {
       // 학생: 익명 인증 후 응답 제출 가능
       allow create: if request.auth != null;
 
-      // 관리자: 인증된 사용자만 조회/삭제 가능
-      allow read, delete: if request.auth != null
-        && request.auth.token.email != null;
+      // 해당 학교 관리자 또는 슈퍼관리자만 조회/삭제 가능
+      allow read, delete: if isSuperAdmin() || isSchoolAdmin(schoolId);
 
       // 수정은 불허 (제출 후 변경 방지)
       allow update: if false;
@@ -40,16 +54,14 @@ service cloud.firestore {
       // 누구나 신청 가능 (익명 인증)
       allow create: if request.auth != null;
 
-      // 관리자만 조회/수정/삭제 가능
-      allow read, update, delete: if request.auth != null
-        && request.auth.token.email != null;
+      // 슈퍼관리자만 조회/수정/삭제 가능
+      allow read, update, delete: if isSuperAdmin();
     }
 
     // === 레거시 호환 (기존 results 컬렉션) ===
     match /results/{docId} {
       allow create: if request.auth != null;
-      allow read, delete: if request.auth != null
-        && request.auth.token.email != null;
+      allow read, delete: if isSuperAdmin();
       allow update: if false;
     }
   }

@@ -4,3 +4,7 @@
 .env*.local
 firebase-env.js
 node_modules/
+seed-schools.js
+cleanup-passwords.js
+plan-*.md
+update_questions.py

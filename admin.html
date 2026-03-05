@@ -407,6 +407,13 @@
     </div>
 
     <script>
+        // --- XSS 방지 ---
+        function esc(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
         // --- Multi-tenant State ---
         let adminSchoolsData = {};
         let currentAdminSchool = null; // selected school ID
@@ -605,8 +612,8 @@
                     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
                         <div class="flex flex-wrap items-start justify-between gap-2 mb-2">
                             <div>
-                                <span class="font-bold text-gray-800">${req.schoolName}</span>
-                                <span class="text-xs text-gray-500 ml-2">${date}</span>
+                                <span class="font-bold text-gray-800">${esc(req.schoolName)}</span>
+                                <span class="text-xs text-gray-500 ml-2">${esc(date)}</span>
                             </div>
                             <div class="flex gap-2">
                                 <button onclick="approveRequest('${req.id}')"
@@ -620,10 +627,10 @@
                             </div>
                         </div>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-600">
-                            <div><span class="font-medium text-gray-700">선생님:</span> ${req.teacherName}</div>
-                            <div><span class="font-medium text-gray-700">이메일:</span> ${req.email}</div>
-                            <div><span class="font-medium text-gray-700">학년:</span> ${req.grades || '미정'}</div>
-                            <div><span class="font-medium text-gray-700">학급:</span> ${req.classes || '미정'}</div>
+                            <div><span class="font-medium text-gray-700">선생님:</span> ${esc(req.teacherName)}</div>
+                            <div><span class="font-medium text-gray-700">이메일:</span> ${esc(req.email)}</div>
+                            <div><span class="font-medium text-gray-700">학년:</span> ${esc(req.grades || '미정')}</div>
+                            <div><span class="font-medium text-gray-700">학급:</span> ${esc(req.classes || '미정')}</div>
                         </div>
                     </div>`;
                 }).join('');
@@ -714,10 +721,10 @@
                 tr.className = 'bg-white border-b hover:bg-gray-50';
                 const studentUrl = `${baseUrl}?school=${school.id}`;
                 tr.innerHTML = `
-                    <td class="px-4 py-3 font-mono text-xs font-bold text-indigo-600">${school.id}</td>
-                    <td class="px-4 py-3 font-medium text-gray-900">${school.schoolName || '-'}</td>
-                    <td class="px-4 py-3">${school.teacherName || '-'}</td>
-                    <td class="px-4 py-3 text-xs">${(school.admins || []).join(', ') || '<span class="text-gray-300">미등록</span>'}</td>
+                    <td class="px-4 py-3 font-mono text-xs font-bold text-indigo-600">${esc(school.id)}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900">${esc(school.schoolName || '-')}</td>
+                    <td class="px-4 py-3">${esc(school.teacherName || '-')}</td>
+                    <td class="px-4 py-3 text-xs">${(school.admins || []).length ? esc((school.admins || []).join(', ')) : '<span class="text-gray-300">미등록</span>'}</td>
                     <td class="px-4 py-3">
                         <button onclick="navigator.clipboard.writeText('${studentUrl}').then(() => alert('복사됨!'))"
                             class="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline">URL 복사</button>
@@ -1598,12 +1605,12 @@
             sortedResults.forEach(r => {
                 const tr = document.createElement('tr');
                 tr.className = "bg-white border-b hover:bg-gray-50";
-                const schoolTag = currentAdminSchool === '__all__' && r.schoolId ? ` <span class="text-xs text-indigo-400">[${adminSchoolsData[r.schoolId]?.schoolName || r.schoolId}]</span>` : '';
+                const schoolTag = currentAdminSchool === '__all__' && r.schoolId ? ` <span class="text-xs text-indigo-400">[${esc(adminSchoolsData[r.schoolId]?.schoolName || r.schoolId)}]</span>` : '';
                 tr.innerHTML = `
                     <td class="px-6 py-4">
-                        <input type="checkbox" class="student-checkbox" data-id="${r.id}" data-collection="${r._collectionPath || ''}" onchange="updateDeleteButtonVisibility()">
+                        <input type="checkbox" class="student-checkbox" data-id="${esc(r.id)}" data-collection="${esc(r._collectionPath || '')}" onchange="updateDeleteButtonVisibility()">
                     </td>
-                    <td class="px-6 py-4 font-medium text-gray-900">${r.grade}학년 ${r.class}반${r.subjectClass ? ' (' + r.subjectClass + ')' : ''}${schoolTag}</td>
+                    <td class="px-6 py-4 font-medium text-gray-900">${esc(r.grade)}학년 ${esc(r.class)}반${r.subjectClass ? ' (' + esc(r.subjectClass) + ')' : ''}${schoolTag}</td>
                     <td class="px-6 py-4">${r.totalScore}점</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 text-xs rounded-full ${r.totalScore >= 54 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
