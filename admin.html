@@ -389,6 +389,21 @@
             </div>
         </div>
 
+        <!-- Pending Requests Panel (Super Admin) -->
+        <div id="pending-panel" class="hidden bg-white rounded-2xl shadow-lg p-6 mb-8 border-l-4 border-amber-400">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
+                    승인 대기 중인 신청
+                    <span id="pending-count" class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">0</span>
+                </h3>
+                <button onclick="loadPendingRequests()" class="text-xs text-gray-400 hover:text-gray-600">새로고침</button>
+            </div>
+            <div id="pending-list" class="space-y-3">
+                <p class="text-sm text-gray-400 text-center py-4">대기 중인 신청이 없습니다.</p>
+            </div>
+        </div>
+
     </div>
 
     <script>
@@ -441,9 +456,11 @@
                 allOpt.textContent = '전체 학교';
                 select.appendChild(allOpt);
                 schoolIds = Object.keys(adminSchoolsData);
-                // Show management panel
+                // Show management panel & pending requests
                 document.getElementById('school-mgmt-panel').classList.remove('hidden');
+                document.getElementById('pending-panel').classList.remove('hidden');
                 renderSchoolMgmtTable();
+                loadPendingRequests();
             } else {
                 // Find schools where this email is listed as admin
                 schoolIds = Object.keys(adminSchoolsData).filter(id => {
@@ -558,6 +575,154 @@
                 populateSchoolSelector(currentUserEmail);
             } catch (e) {
                 alert('삭제 실패: ' + e.message);
+            }
+        }
+
+        // --- Pending Requests (Approval System) ---
+        let pendingRequests = [];
+
+        async function loadPendingRequests() {
+            const listEl = document.getElementById('pending-list');
+            const countEl = document.getElementById('pending-count');
+
+            try {
+                const snap = await db.collection('pendingSchools')
+                    .where('status', '==', 'pending')
+                    .orderBy('requestedAt', 'desc')
+                    .get();
+
+                pendingRequests = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                countEl.textContent = pendingRequests.length;
+
+                if (pendingRequests.length === 0) {
+                    listEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">대기 중인 신청이 없습니다.</p>';
+                    return;
+                }
+
+                listEl.innerHTML = pendingRequests.map(req => {
+                    const date = req.requestedAt ? new Date(req.requestedAt.seconds * 1000).toLocaleDateString('ko-KR') : '-';
+                    return `
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                        <div class="flex flex-wrap items-start justify-between gap-2 mb-2">
+                            <div>
+                                <span class="font-bold text-gray-800">${req.schoolName}</span>
+                                <span class="text-xs text-gray-500 ml-2">${date}</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="approveRequest('${req.id}')"
+                                    class="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700">
+                                    승인
+                                </button>
+                                <button onclick="rejectRequest('${req.id}')"
+                                    class="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600">
+                                    거절
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-600">
+                            <div><span class="font-medium text-gray-700">선생님:</span> ${req.teacherName}</div>
+                            <div><span class="font-medium text-gray-700">이메일:</span> ${req.email}</div>
+                            <div><span class="font-medium text-gray-700">학년:</span> ${req.grades || '미정'}</div>
+                            <div><span class="font-medium text-gray-700">학급:</span> ${req.classes || '미정'}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                console.warn("Pending requests load failed:", e);
+                listEl.innerHTML = '<p class="text-sm text-red-400 text-center py-4">신청 목록을 불러오지 못했습니다.</p>';
+            }
+        }
+
+        async function approveRequest(reqId) {
+            const req = pendingRequests.find(r => r.id === reqId);
+            if (!req) return;
+            if (!confirm(`"${req.schoolName}" 신청을 승인하시겠습니까?\n\n학교가 등록되고, ${req.email} 계정이 생성됩니다.`)) return;
+
+            try {
+                // 1. 학교 코드 생성
+                const schoolId = req.schoolName
+                    .replace(/고등학교|중학교|초등학교|학교/g, '')
+                    .trim()
+                    .replace(/\s+/g, '-')
+                    .toLowerCase() || 'school-' + Date.now();
+
+                // 2. 학년 파싱
+                const gradesMatch = (req.grades || '').match(/\d+/g);
+                const grades = gradesMatch ? gradesMatch.map(Number) : [1, 2, 3];
+
+                // 3. 학급 수 파싱
+                const classCount = parseInt((req.classes || '').match(/\d+/)?.[0]) || 10;
+
+                // 4. Firestore에 학교 등록
+                await db.collection('schools').doc(schoolId).set({
+                    schoolName: req.schoolName,
+                    teacherName: req.teacherName,
+                    tagline: `${req.teacherName} & AI와 함께하는 성장 여행`,
+                    grades: grades,
+                    classes: { default: classCount },
+                    admins: [req.email],
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // 5. Firebase Auth 계정 생성 (REST API)
+                try {
+                    const apiKey = window.__FIREBASE_API_KEY__ || firebaseConfig.apiKey;
+                    const signUpRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: req.email,
+                            password: req.password,
+                            returnSecureToken: false
+                        })
+                    });
+                    const signUpData = await signUpRes.json();
+                    if (signUpData.error) {
+                        if (signUpData.error.message === 'EMAIL_EXISTS') {
+                            console.log('계정이 이미 존재합니다. 학교 등록만 진행합니다.');
+                        } else {
+                            throw new Error(signUpData.error.message);
+                        }
+                    }
+                } catch (authErr) {
+                    console.warn('Auth 계정 생성 참고:', authErr.message);
+                }
+
+                // 6. 신청 상태 업데이트
+                await db.collection('pendingSchools').doc(reqId).update({
+                    status: 'approved',
+                    approvedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    approvedBy: currentUserEmail,
+                    schoolId: schoolId
+                });
+
+                alert(`승인 완료!\n\n학교코드: ${schoolId}\n학생URL: ${location.origin}?school=${schoolId}\n관리자: ${req.email}`);
+
+                // 새로고침
+                await loadAdminSchools();
+                populateSchoolSelector(currentUserEmail);
+            } catch (e) {
+                console.error("Approve error:", e);
+                alert('승인 처리 중 오류: ' + e.message);
+            }
+        }
+
+        async function rejectRequest(reqId) {
+            const req = pendingRequests.find(r => r.id === reqId);
+            if (!req) return;
+            if (!confirm(`"${req.schoolName}" 신청을 거절하시겠습니까?`)) return;
+
+            try {
+                await db.collection('pendingSchools').doc(reqId).update({
+                    status: 'rejected',
+                    rejectedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    rejectedBy: currentUserEmail
+                });
+                alert('거절되었습니다.');
+                loadPendingRequests();
+            } catch (e) {
+                alert('거절 처리 중 오류: ' + e.message);
             }
         }
 

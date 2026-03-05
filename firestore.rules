@@ -35,6 +35,16 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // === 학교 사용 신청 (pendingSchools) ===
+    match /pendingSchools/{docId} {
+      // 누구나 신청 가능 (익명 인증)
+      allow create: if request.auth != null;
+
+      // 관리자만 조회/수정/삭제 가능
+      allow read, update, delete: if request.auth != null
+        && request.auth.token.email != null;
+    }
+
     // === 레거시 호환 (기존 results 컬렉션) ===
     match /results/{docId} {
       allow create: if request.auth != null;
