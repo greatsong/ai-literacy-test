@@ -1321,7 +1321,8 @@
                 auth = firebase.auth();
 
                 auth.onAuthStateChanged(async (user) => {
-                    if (user) {
+                    if (user && user.email) {
+                        // 이메일 인증된 관리자만 대시보드 표시 (익명 인증 무시)
                         document.getElementById('auth-overlay').classList.add('hidden');
                         document.getElementById('dashboard').classList.remove('hidden');
                         await loadAdminSchools();
