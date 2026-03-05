@@ -260,19 +260,36 @@
         status.classList.add('hidden');
 
         try {
-            // 학교코드 자동 생성 (학교명에서 영문/숫자 추출, 없으면 타임스탬프)
-            const schoolId = school
-                .replace(/[고등학교|중학교|초등학교|학교]/g, '')
-                .replace(/\s+/g, '-')
-                .toLowerCase() || 'school-' + Date.now();
+            // 1. Firebase Auth 계정을 먼저 생성 (비밀번호를 Firestore에 저장하지 않기 위함)
+            const apiKey = window.__FIREBASE_API_KEY__ || 'FIREBASE_API_KEY_NOT_SET';
+            const signUpRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: email,
+                    password: password,
+                    returnSecureToken: false
+                })
+            });
+            const signUpData = await signUpRes.json();
+            if (signUpData.error) {
+                if (signUpData.error.message === 'EMAIL_EXISTS') {
+                    // 이미 계정이 있으면 그대로 진행
+                } else if (signUpData.error.message === 'WEAK_PASSWORD : Password should be at least 6 characters') {
+                    throw new Error('비밀번호는 6자 이상이어야 합니다.');
+                } else {
+                    throw new Error('계정 생성 실패: ' + signUpData.error.message);
+                }
+            }
 
+            // 2. Firestore에 신청 정보 저장 (비밀번호 제외!)
             await db.collection('pendingSchools').add({
                 schoolName: school,
                 teacherName: teacher,
                 grades: grades,
                 classes: classes,
                 email: email,
-                password: password,
+                // password는 저장하지 않음 - Firebase Auth에만 존재
                 status: 'pending',
                 requestedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
@@ -282,7 +299,7 @@
                 document.getElementById(id).value = ''
             );
 
-            status.textContent = '신청이 완료되었습니다! 관리자 승인 후 이메일로 안내드리겠습니다.';
+            status.textContent = '신청이 완료되었습니다! 계정이 생성되었으며, 관리자 승인 후 로그인할 수 있습니다.';
             status.className = 'text-center text-sm text-emerald-600 font-medium mt-2';
             status.classList.remove('hidden');
             btn.textContent = '신청 완료';

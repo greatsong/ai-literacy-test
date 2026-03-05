@@ -636,7 +636,7 @@
         async function approveRequest(reqId) {
             const req = pendingRequests.find(r => r.id === reqId);
             if (!req) return;
-            if (!confirm(`"${req.schoolName}" 신청을 승인하시겠습니까?\n\n학교가 등록되고, ${req.email} 계정이 생성됩니다.`)) return;
+            if (!confirm(`"${req.schoolName}" 신청을 승인하시겠습니까?\n\n학교가 등록되고, ${req.email}에 관리 권한이 부여됩니다.`)) return;
 
             try {
                 // 1. 학교 코드 생성
@@ -665,29 +665,7 @@
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                // 5. Firebase Auth 계정 생성 (REST API)
-                try {
-                    const apiKey = window.__FIREBASE_API_KEY__ || firebaseConfig.apiKey;
-                    const signUpRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            email: req.email,
-                            password: req.password,
-                            returnSecureToken: false
-                        })
-                    });
-                    const signUpData = await signUpRes.json();
-                    if (signUpData.error) {
-                        if (signUpData.error.message === 'EMAIL_EXISTS') {
-                            console.log('계정이 이미 존재합니다. 학교 등록만 진행합니다.');
-                        } else {
-                            throw new Error(signUpData.error.message);
-                        }
-                    }
-                } catch (authErr) {
-                    console.warn('Auth 계정 생성 참고:', authErr.message);
-                }
+                // 5. Auth 계정은 신청 시 이미 생성됨 (비밀번호 미저장)
 
                 // 6. 신청 상태 업데이트
                 await db.collection('pendingSchools').doc(reqId).update({
