@@ -1806,7 +1806,9 @@
                 return;
             }
 
-            if (grade === '2' && !grade2Class) {
+            const grade2Config = currentSchool && currentSchool.classes['2'];
+            const needsGrade2Class = grade2Config && grade2Config.subjectClasses && grade2Config.subjectClasses.length > 0;
+            if (grade === '2' && needsGrade2Class && !grade2Class) {
                 alert("2학년은 선택과목 반을 선택해주세요!");
                 return;
             }
