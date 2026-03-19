@@ -12,7 +12,7 @@
 
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
     <!-- Firebase SDK (v8) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -165,7 +165,7 @@
                 <span class="text-sm font-bold text-indigo-900">필터링:</span>
             </div>
             <select id="filter-grade" class="px-3 py-2 rounded border border-gray-300 text-sm"
-                onchange="applyFilters()">
+                onchange="populateClassFilter(); applyFilters()">
                 <option value="all">전체 학년</option>
                 <option value="1">1학년</option>
                 <option value="2">2학년</option>
@@ -174,18 +174,6 @@
             <select id="filter-class" class="px-3 py-2 rounded border border-gray-300 text-sm"
                 onchange="applyFilters()">
                 <option value="all">전체 반</option>
-                <option value="1">1반</option>
-                <option value="2">2반</option>
-                <option value="3">3반</option>
-                <option value="4">4반</option>
-                <option value="5">5반</option>
-                <option value="6">6반</option>
-                <option value="7">7반</option>
-                <option value="8">8반</option>
-                <option value="9">9반</option>
-                <option value="10">10반</option>
-                <option value="11">11반</option>
-                <option value="12">12반</option>
             </select>
             <select id="filter-period" class="px-3 py-2 rounded border border-gray-300 text-sm bg-white"
                 onchange="applyFilters()">
@@ -1413,6 +1401,7 @@
                     allResults = results.flat();
                 }
 
+                populateClassFilter();
                 applyFilters();
             } catch (e) {
                 console.error("Error fetching data:", e);
@@ -1492,6 +1481,54 @@
             }
         }
 
+        function populateClassFilter() {
+            const gradeFilter = document.getElementById('filter-grade').value;
+            const classSelect = document.getElementById('filter-class');
+            const prevValue = classSelect.value;
+
+            // Collect unique class entries from data
+            const classSet = new Map(); // key -> label
+            allResults.forEach(r => {
+                if (gradeFilter !== 'all' && r.grade !== gradeFilter) return;
+                const cls = r.class;
+                if (!classSet.has(cls)) {
+                    classSet.set(cls, `${cls}반`);
+                }
+                // Add subjectClass entries for grade 2
+                if (r.subjectClass) {
+                    const key = `sc_${r.subjectClass}`;
+                    if (!classSet.has(key)) {
+                        classSet.set(key, `${r.subjectClass}`);
+                    }
+                }
+            });
+
+            // Sort: numeric classes first, then subjectClass
+            const sorted = [...classSet.entries()].sort((a, b) => {
+                const aNum = parseInt(a[0]);
+                const bNum = parseInt(b[0]);
+                if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+                if (!isNaN(aNum)) return -1;
+                if (!isNaN(bNum)) return 1;
+                return a[1].localeCompare(b[1]);
+            });
+
+            classSelect.innerHTML = '<option value="all">전체 반</option>';
+            sorted.forEach(([key, label]) => {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = label;
+                classSelect.appendChild(opt);
+            });
+
+            // Restore previous selection if still exists
+            if ([...classSelect.options].some(o => o.value === prevValue)) {
+                classSelect.value = prevValue;
+            } else {
+                classSelect.value = 'all';
+            }
+        }
+
         function applyFilters() {
             const gradeFilter = document.getElementById('filter-grade').value;
             const classFilter = document.getElementById('filter-class').value;
@@ -1506,7 +1543,14 @@
 
             filteredResults = allResults.filter(r => {
                 if (gradeFilter !== 'all' && r.grade !== gradeFilter) return false;
-                if (classFilter !== 'all' && r.class !== classFilter) return false;
+                if (classFilter !== 'all') {
+                    if (classFilter.startsWith('sc_')) {
+                        // Filter by subjectClass
+                        if (r.subjectClass !== classFilter.slice(3)) return false;
+                    } else {
+                        if (r.class !== classFilter) return false;
+                    }
+                }
 
                 if (cutoffDate) {
                     if (r.rDate < cutoffDate) return false;
@@ -1686,6 +1730,7 @@
         // ... Chart implementations ...
         let levelChartInstance = null;
         function renderLevelChart() {
+            if (typeof Chart === 'undefined') { console.warn('Chart.js 미로드'); return; }
             const ctx = document.getElementById('levelChart').getContext('2d');
 
             const counts = [0, 0, 0, 0, 0]; // L1 to L5
@@ -1747,6 +1792,7 @@
 
         let comparisonChartInstance = null;
         function renderComparisonChart() {
+            if (typeof Chart === 'undefined') { console.warn('Chart.js 미로드'); return; }
             const ctx = document.getElementById('comparisonChart').getContext('2d');
             const gradeFilter = document.getElementById('filter-grade').value;
             const classFilter = document.getElementById('filter-class').value;
@@ -1782,24 +1828,42 @@
                     return (group.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / group.length).toFixed(1);
                 });
             } else if (classFilter === 'all') {
-                // Scenario 2: Compare by Class in Selected Grade
+                // Scenario 2: Compare by Class in Selected Grade (numeric + subjectClass)
                 labelEl.innerText = `${gradeFilter}학년 반별 평균 비교 (기간 내)`;
                 chartLabel = "반별 평균 점수";
-                for (let i = 1; i <= 15; i++) { // Increased to 15 just in case
+
+                // Numeric classes
+                for (let i = 1; i <= 15; i++) {
                     const group = activeResults.filter(r => r.grade === gradeFilter && r.class === String(i));
                     if (group.length > 0) {
                         labels.push(`${i}반`);
                         data.push((group.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / group.length).toFixed(1));
                     }
                 }
+                // SubjectClass groups (선택반)
+                const scSet = new Set();
+                activeResults.forEach(r => {
+                    if (r.grade === gradeFilter && r.subjectClass) scSet.add(r.subjectClass);
+                });
+                [...scSet].sort().forEach(sc => {
+                    const group = activeResults.filter(r => r.grade === gradeFilter && r.subjectClass === sc);
+                    if (group.length > 0) {
+                        labels.push(sc);
+                        data.push((group.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / group.length).toFixed(1));
+                    }
+                });
             } else {
                 // Scenario 3: Compare Selected Class vs Others (or Grade Ave)
-                labelEl.innerText = `${gradeFilter}학년 ${classFilter}반 vs 벤치마크 (기간 내)`;
+                const isSubjectClass = classFilter.startsWith('sc_');
+                const filterLabel = isSubjectClass ? classFilter.slice(3) : `${classFilter}반`;
+                labelEl.innerText = `${gradeFilter}학년 ${filterLabel} vs 벤치마크 (기간 내)`;
                 chartLabel = "평균 점수 비교";
-                labels = [`${gradeFilter}-${classFilter}반`, `${gradeFilter}학년 전체`, '전체 평균'];
+                labels = [`${gradeFilter}-${filterLabel}`, `${gradeFilter}학년 전체`, '전체 평균'];
 
                 // Class Ave
-                const classGroup = activeResults.filter(r => r.grade === gradeFilter && r.class === classFilter);
+                const classGroup = isSubjectClass
+                    ? activeResults.filter(r => r.grade === gradeFilter && r.subjectClass === classFilter.slice(3))
+                    : activeResults.filter(r => r.grade === gradeFilter && r.class === classFilter);
                 const classAve = classGroup.length > 0 ? (classGroup.reduce((acc, curr) => acc + (curr.totalScore || 0), 0) / classGroup.length) : 0;
 
                 // Grade Ave
@@ -1855,6 +1919,7 @@
 
         let trendChartInstance = null;
         function renderTrendChart() {
+            if (typeof Chart === 'undefined') { console.warn('Chart.js 미로드'); return; }
             const ctx = document.getElementById('trendChart').getContext('2d');
             const periodFilter = document.getElementById('filter-period').value;
 
@@ -1942,6 +2007,7 @@
 
         let weaknessChartInstance = null;
         function renderWeaknessChart() {
+            if (typeof Chart === 'undefined') { console.warn('Chart.js 미로드'); return; }
             const labels = [];
             const dataCounts = [];
 

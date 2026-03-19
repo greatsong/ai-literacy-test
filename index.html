@@ -8,7 +8,7 @@
 
     <!-- Libraries (CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
@@ -2084,6 +2084,10 @@
         function renderRadarChart(scores) {
             const ctx = document.getElementById('radarChart');
             if (!ctx) return;
+            if (typeof Chart === 'undefined') {
+                console.warn('Chart.js가 로드되지 않았습니다.');
+                return;
+            }
 
             const labels = Object.keys(scores);
             const data = labels.map(k => scores[k].score);
