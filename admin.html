@@ -145,6 +145,12 @@
         </header>
 
         <!-- Pending Requests Panel (Super Admin) -->
+        <div id="verify-banner" class="hidden bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6 text-sm text-amber-900">
+            <p class="font-bold mb-1">이메일 인증이 필요합니다.</p>
+            <p id="verify-banner-text" class="mb-2">학생 결과를 보호하기 위해 관리자 계정은 이메일 인증을 마쳐야 합니다. 인증 메일의 링크를 누른 뒤 이 페이지를 새로고침하세요.</p>
+            <button id="verify-send-btn" onclick="sendVerificationMail()" class="px-3 py-1 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700">인증 메일 보내기</button>
+        </div>
+
         <div id="pending-panel" class="hidden bg-white rounded-2xl shadow-lg p-6 mb-8 border-l-4 border-amber-400">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -314,10 +320,16 @@
         <div id="school-mgmt-panel" class="card mt-8 hidden border-indigo-100">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="font-bold text-gray-700 text-lg">학교 관리 (슈퍼 관리자 전용)</h3>
-                <button onclick="toggleSchoolForm(true)"
-                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700">
-                    + 새 학교 추가
-                </button>
+                <div class="flex gap-2">
+                    <button id="migrate-admins-btn" onclick="migrateSchoolAdmins()"
+                        class="hidden px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600">
+                        관리자 이메일 비공개 이전
+                    </button>
+                    <button onclick="toggleSchoolForm(true)"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700">
+                        + 새 학교 추가
+                    </button>
+                </div>
             </div>
 
             <!-- School Form (Add/Edit) -->
@@ -396,10 +408,11 @@
 
     <script>
         // --- XSS 방지 ---
+        // 따옴표까지 처리해야 속성값 안에서도 안전하다.
+        // onclick 같은 인라인 핸들러 안의 문자열에는 esc()로도 부족하므로 data-* 속성으로 넘긴다.
+        const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
         function esc(str) {
-            const div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
+            return String(str ?? '').replace(/[&<>"']/g, c => ESC_MAP[c]);
         }
 
         // --- Multi-tenant State ---
@@ -419,8 +432,11 @@
                     const snap = await db.collection('schools').get();
                     if (!snap.empty) {
                         snap.forEach(doc => {
-                            adminSchoolsData[doc.id] = { id: doc.id, ...doc.data() };
+                            const data = doc.data();
+                            // 문서 필드가 실제 문서 ID를 덮어쓰지 못하게 id를 마지막에 둔다.
+                            adminSchoolsData[doc.id] = { ...data, id: doc.id, legacyAdmins: data.admins };
                         });
+                        await loadSchoolAdmins();
                         console.log("Loaded " + Object.keys(adminSchoolsData).length + " schools from Firestore");
                         return;
                     }
@@ -434,6 +450,45 @@
                 adminSchoolsData = await res.json();
             } catch (e) {
                 console.error("schools.json load failed:", e);
+            }
+        }
+
+        // 관리자 이메일은 공개 문서인 schools가 아니라 비공개 문서인 schoolAdmins에 있다.
+        // 권한이 없는 학교의 문서는 읽기가 거부되므로 그대로 건너뛴다.
+        async function loadSchoolAdmins() {
+            await Promise.all(Object.keys(adminSchoolsData).map(async (id) => {
+                try {
+                    const snap = await db.collection('schoolAdmins').doc(id).get();
+                    if (snap.exists) adminSchoolsData[id].admins = snap.data().admins || [];
+                } catch (e) {
+                    // 이 학교의 관리자가 아니다
+                }
+            }));
+        }
+
+        // schools 문서에 남은 admins 필드를 schoolAdmins로 옮긴다. 슈퍼관리자가 한 번만 실행한다.
+        async function migrateSchoolAdmins() {
+            const targets = Object.values(adminSchoolsData).filter(s => Array.isArray(s.legacyAdmins));
+            if (targets.length === 0) return;
+            if (!confirm(`학교 ${targets.length}곳의 관리자 이메일을 비공개 문서로 옮깁니다. 계속할까요?`)) return;
+
+            try {
+                const batch = db.batch();
+                targets.forEach(school => {
+                    const admins = [...new Set([...(school.admins || []), ...school.legacyAdmins])];
+                    batch.set(db.collection('schoolAdmins').doc(school.id), { admins });
+                    batch.update(db.collection('schools').doc(school.id), {
+                        admins: firebase.firestore.FieldValue.delete(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+                await batch.commit();
+                alert('이전을 마쳤습니다.');
+                await loadAdminSchools();
+                populateSchoolSelector(currentUserEmail);
+            } catch (e) {
+                console.error("Admin migration error:", e);
+                alert('이전 실패: ' + e.message);
             }
         }
 
@@ -535,6 +590,7 @@
 
             if (!id) { alert('학교 코드를 입력해주세요.'); return; }
             if (!name) { alert('학교 이름을 입력해주세요.'); return; }
+            if (!editingSchoolId && adminSchoolsData[id]) { alert('이미 있는 학교 코드입니다.'); return; }
 
             const schoolData = {
                 schoolName: name,
@@ -542,12 +598,15 @@
                 tagline: tagline || `${teacher || ''} & AI와 함께하는 성장 여행`.trim(),
                 grades: grades.length > 0 ? grades : [1, 2, 3],
                 classes: { default: classCount },
-                admins: admins,
+                admins: firebase.firestore.FieldValue.delete(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             };
 
             try {
-                await db.collection('schools').doc(id).set(schoolData, { merge: true });
+                const batch = db.batch();
+                batch.set(db.collection('schools').doc(id), schoolData, { merge: true });
+                batch.set(db.collection('schoolAdmins').doc(id), { admins });
+                await batch.commit();
                 alert(editingSchoolId ? '학교 정보가 수정되었습니다.' : `학교 "${name}"이(가) 등록되었습니다!\n\n학생 접속 URL:\n${location.origin}?school=${id}`);
                 toggleSchoolForm(false);
                 await loadAdminSchools();
@@ -564,7 +623,10 @@
             if (!confirm(`"${name}" 학교를 삭제하시겠습니까?\n(학생 응답 데이터는 유지됩니다)`)) return;
 
             try {
-                await db.collection('schools').doc(schoolId).delete();
+                const batch = db.batch();
+                batch.delete(db.collection('schools').doc(schoolId));
+                batch.delete(db.collection('schoolAdmins').doc(schoolId));
+                await batch.commit();
                 alert('삭제되었습니다.');
                 await loadAdminSchools();
                 populateSchoolSelector(currentUserEmail);
@@ -604,11 +666,11 @@
                                 <span class="text-xs text-gray-500 ml-2">${esc(date)}</span>
                             </div>
                             <div class="flex gap-2">
-                                <button onclick="approveRequest('${req.id}')"
+                                <button data-req-id="${esc(req.id)}" onclick="approveRequest(this.dataset.reqId)"
                                     class="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700">
                                     승인
                                 </button>
-                                <button onclick="rejectRequest('${req.id}')"
+                                <button data-req-id="${esc(req.id)}" onclick="rejectRequest(this.dataset.reqId)"
                                     class="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600">
                                     거절
                                 </button>
@@ -639,7 +701,8 @@
                     .replace(/고등학교|중학교|초등학교|학교/g, '')
                     .trim()
                     .replace(/\s+/g, '-')
-                    .toLowerCase() || 'school-' + Date.now();
+                    .toLowerCase()
+                    .replace(/[^a-z0-9가-힣-]/g, '') || 'school-' + Date.now();
 
                 // 2. 학년 파싱
                 const gradesMatch = (req.grades || '').match(/\d+/g);
@@ -649,15 +712,24 @@
                 const classCount = parseInt((req.classes || '').match(/\d+/)?.[0]) || 10;
 
                 // 4. Firestore에 학교 등록
-                await db.collection('schools').doc(schoolId).set({
+                // 같은 코드의 학교가 있으면 기존 학교를 덮어쓰지 않고 중단한다.
+                const schoolRef = db.collection('schools').doc(schoolId);
+                const schoolData = {
                     schoolName: req.schoolName,
                     teacherName: req.teacherName,
                     tagline: `${req.teacherName} & AI와 함께하는 성장 여행`,
                     grades: grades,
                     classes: { default: classCount },
-                    admins: [req.email],
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                await db.runTransaction(async (tx) => {
+                    const existing = await tx.get(schoolRef);
+                    if (existing.exists) {
+                        throw new Error(`학교 코드 "${schoolId}"가 이미 있습니다. 학교 관리에서 확인해주세요.`);
+                    }
+                    tx.set(schoolRef, schoolData);
+                    tx.set(db.collection('schoolAdmins').doc(schoolId), { admins: [req.email.toLowerCase()] });
                 });
 
                 // 5. Auth 계정은 신청 시 이미 생성됨 (비밀번호 미저장)
@@ -714,16 +786,19 @@
                     <td class="px-4 py-3">${esc(school.teacherName || '-')}</td>
                     <td class="px-4 py-3 text-xs">${(school.admins || []).length ? esc((school.admins || []).join(', ')) : '<span class="text-gray-300">미등록</span>'}</td>
                     <td class="px-4 py-3">
-                        <button onclick="navigator.clipboard.writeText('${studentUrl}').then(() => alert('복사됨!'))"
+                        <button data-url="${esc(studentUrl)}" onclick="navigator.clipboard.writeText(this.dataset.url).then(() => alert('복사됨!'))"
                             class="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline">URL 복사</button>
                     </td>
                     <td class="px-4 py-3">
-                        <button onclick="editSchool('${school.id}')" class="text-xs text-blue-600 hover:text-blue-800 font-bold mr-2">수정</button>
-                        <button onclick="deleteSchool('${school.id}')" class="text-xs text-red-500 hover:text-red-700 font-bold">삭제</button>
+                        <button data-school-id="${esc(school.id)}" onclick="editSchool(this.dataset.schoolId)" class="text-xs text-blue-600 hover:text-blue-800 font-bold mr-2">수정</button>
+                        <button data-school-id="${esc(school.id)}" onclick="deleteSchool(this.dataset.schoolId)" class="text-xs text-red-500 hover:text-red-700 font-bold">삭제</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
+
+            const hasLegacyAdmins = Object.values(adminSchoolsData).some(s => Array.isArray(s.legacyAdmins));
+            document.getElementById('migrate-admins-btn').classList.toggle('hidden', !hasLegacyAdmins);
 
             if (Object.keys(adminSchoolsData).length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">등록된 학교가 없습니다. "새 학교 추가"를 눌러주세요.</td></tr>';
@@ -1298,6 +1373,7 @@
                         // 이메일 인증된 관리자만 대시보드 표시 (익명 인증 무시)
                         document.getElementById('auth-overlay').classList.add('hidden');
                         document.getElementById('dashboard').classList.remove('hidden');
+                        await refreshEmailVerification(user);
                         await loadAdminSchools();
                         populateSchoolSelector(user.email);
                         fetchData();
@@ -1308,6 +1384,33 @@
                 });
             }
         });
+
+        // 메일의 링크를 누른 뒤 새로고침하면 인증 상태가 토큰에 반영되도록 다시 받는다.
+        async function refreshEmailVerification(user) {
+            if (!user.emailVerified) {
+                try {
+                    await user.reload();
+                    if (user.emailVerified) await user.getIdToken(true);
+                } catch (e) {
+                    console.warn("Email verification refresh failed:", e);
+                }
+            }
+            document.getElementById('verify-banner').classList.toggle('hidden', user.emailVerified);
+        }
+
+        async function sendVerificationMail() {
+            const btn = document.getElementById('verify-send-btn');
+            btn.disabled = true;
+            try {
+                await auth.currentUser.sendEmailVerification();
+                document.getElementById('verify-banner-text').textContent =
+                    `${auth.currentUser.email}로 인증 메일을 보냈습니다. 링크를 누른 뒤 이 페이지를 새로고침하세요. 메일이 없으면 스팸함을 확인하세요.`;
+            } catch (e) {
+                console.error("Verification mail error:", e);
+                alert('인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해주세요.');
+                btn.disabled = false;
+            }
+        }
 
         async function adminLogin() {
             const email = document.getElementById('admin-email').value;
@@ -1655,10 +1758,10 @@
                         <input type="checkbox" class="student-checkbox" data-id="${esc(r.id)}" data-collection="${esc(r._collectionPath || '')}" onchange="updateDeleteButtonVisibility()">
                     </td>
                     <td class="px-6 py-4 font-medium text-gray-900">${esc(r.grade)}학년 ${esc(r.class)}반${r.subjectClass ? ' (' + esc(r.subjectClass) + ')' : ''}${schoolTag}</td>
-                    <td class="px-6 py-4">${r.totalScore}점</td>
+                    <td class="px-6 py-4">${esc(r.totalScore)}점</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 text-xs rounded-full ${r.totalScore >= 54 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
-                            ${r.levelTitle ? r.levelTitle.split('. ')[1] : '-'}
+                            ${r.levelTitle ? esc(String(r.levelTitle).split('. ')[1]) : '-'}
                         </span>
                     </td>
                     <td class="px-6 py-4 text-xs text-gray-500">${r.rDate.toLocaleString()}</td>
@@ -2197,6 +2300,7 @@
                         ...(idToken && { 'Authorization': `Bearer ${idToken}` })
                     },
                     body: JSON.stringify({
+                        schoolId: currentAdminSchool,
                         stats: { avgScore: avgScore },
                         weakCategory: weakCategory,
                         weakQuestion: weakQ ? `Q${weakQ.id}` : "-",
@@ -2213,7 +2317,7 @@
 
             } catch (e) {
                 console.error(e);
-                content.innerHTML = `<div class="text-red-500 text-center p-4">분석 중 오류가 발생했습니다.<br>${e.message}</div>`;
+                content.innerHTML = `<div class="text-red-500 text-center p-4">분석 중 오류가 발생했습니다.<br>${esc(e.message)}</div>`;
             }
         }
 

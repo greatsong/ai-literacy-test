@@ -1,0 +1,12 @@
+{
+  "name": "ai-literacy-rules-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "cd ../.. && firebase emulators:exec --config firebase.emulator.json --only firestore --project demo-literacy 'node --test tests/rules/rules.test.mjs'"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.0",
+    "firebase": "^11.0.0"
+  }
+}

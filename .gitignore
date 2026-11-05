@@ -8,3 +8,5 @@ seed-schools.js
 cleanup-passwords.js
 plan-*.md
 update_questions.py
+public/
+firestore-debug.log

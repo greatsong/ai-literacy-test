@@ -44,10 +44,25 @@ function getRateLimitResult(ip) {
     return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - timestamps.length };
 }
 
+// 호출자 토큰으로 Firestore에 물어 실제 관리자인지 확인한다. 판단은 보안 규칙이 한다.
+// schoolAdmins 목록 조회는 슈퍼관리자만, 문서 조회는 해당 학교 관리자만 통과한다.
+// 규칙을 통과했지만 문서가 아직 없는 학교(이전 전)는 404가 온다. 권한이 없으면 403이다.
+export async function hasAdminAccess(idToken, schoolId) {
+    const base = 'https://firestore.googleapis.com/v1/projects/ai-literacy-test/databases/(default)/documents';
+    const headers = { Authorization: `Bearer ${idToken}` };
+
+    const list = await fetch(`${base}/schoolAdmins?pageSize=1`, { headers });
+    if (list.ok) return true;
+
+    if (typeof schoolId !== 'string' || !/^[a-z0-9가-힣-]{1,80}$/.test(schoolId)) return false;
+    const school = await fetch(`${base}/schoolAdmins/${encodeURIComponent(schoolId)}`, { headers });
+    return school.ok || school.status === 404;
+}
+
 export default async function handler(req, res) {
     // CORS Setup
     const allowedOrigins = [
-        process.env.ALLOWED_ORIGIN || 'https://ai-literacy-test.vercel.app',
+        process.env.ALLOWED_ORIGIN || 'https://ai-literacy-test-greatsong.vercel.app',
         'http://localhost:3000',
         'http://localhost:5173',
     ];
@@ -74,11 +89,28 @@ export default async function handler(req, res) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ error: '인증이 필요합니다.' });
     }
+    let decodedToken;
+    const token = authHeader.split('Bearer ')[1];
     try {
-        const token = authHeader.split('Bearer ')[1];
-        await admin.auth().verifyIdToken(token);
+        decodedToken = await admin.auth().verifyIdToken(token);
     } catch (e) {
         return res.status(401).json({ error: '유효하지 않은 인증 토큰입니다.' });
+    }
+
+    // 이 API는 관리자 대시보드에서만 호출한다.
+    // 학생 페이지가 발급하는 익명 토큰을 받으면 누구나 Gemini 사용량을 소모할 수 있다.
+    if (decodedToken.firebase?.sign_in_provider === 'anonymous' || !decodedToken.email) {
+        return res.status(403).json({ error: '관리자 로그인이 필요합니다.' });
+    }
+
+    // 이메일 계정은 누구나 만들 수 있으므로 실제 관리자인지까지 확인한다.
+    try {
+        if (!(await hasAdminAccess(token, req.body?.schoolId))) {
+            return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
+        }
+    } catch (e) {
+        console.error('Admin check error:', e?.name);
+        return res.status(503).json({ error: '권한을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.' });
     }
 
     // --- Rate Limit 체크 ---
@@ -98,7 +130,13 @@ export default async function handler(req, res) {
         });
     }
 
-    const { stats, weakCategory, weakQuestion, weakQuestionText } = req.body;
+    // 값은 프롬프트에 그대로 들어가므로 길이를 제한한다.
+    const body = req.body || {};
+    const clip = (value, max) => String(value ?? '').slice(0, max);
+    const avgScore = clip(body.stats?.avgScore, 20);
+    const weakCategory = clip(body.weakCategory, 40);
+    const weakQuestion = clip(body.weakQuestion, 40);
+    const weakQuestionText = clip(body.weakQuestionText, 500);
 
     const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -114,7 +152,7 @@ export default async function handler(req, res) {
     당신은 교육 전문가입니다. 학생들의 'AI 협업 역량 진단' 결과입니다.
 
     [데이터]
-    - 평균 점수: ${stats.avgScore} / 20
+    - 평균 점수: ${avgScore} / 20
     - 취약 역량: ${weakCategory}
     - 가장 많이 틀린 문항: ${weakQuestion} ("${weakQuestionText}")
 
@@ -131,6 +169,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error("Gemini Error:", error);
-        return res.status(500).json({ error: 'Failed to generate advice: ' + error.message });
+        return res.status(500).json({ error: 'Failed to generate advice' });
     }
 }
