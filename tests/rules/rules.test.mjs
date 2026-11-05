@@ -189,6 +189,11 @@ test('이전 전 데이터: schools의 admins 필드도 인정한다 (1단계 �
     await assertFails(getDocs(collection(account('x', 'stranger@gmail.com'), 'schools/s4/responses')));
 });
 
+test('공개 문서인 schools에 관리자 이메일을 다시 넣지 못한다 (2단계 규칙 전용)', { skip: !enforcesVerifiedEmail }, async () => {
+    await assertFails(setDoc(doc(superAdmin(), 'schools/s5'), { schoolName: 'E', admins: [TEACHER] }));
+    await assertFails(updateDoc(doc(superAdmin(), 'schools/s1'), { admins: [TEACHER] }));
+});
+
 test('이메일 미인증 계정은 슈퍼관리자·학교 관리자가 되지 못한다 (2단계 규칙 전용)', { skip: !enforcesVerifiedEmail }, async () => {
     const fakeSuper = account('fake', SUPER, false);
     const fakeTeacher = account('fake2', TEACHER, false);
