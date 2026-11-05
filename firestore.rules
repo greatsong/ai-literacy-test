@@ -10,12 +10,17 @@ service cloud.firestore {
       return request.auth == null ? '' : request.auth.token.get('email', '');
     }
 
+    // 과도기: 이메일 인증 기능이 생기기 전에 만든 기존 관리자 계정. 인증을 마치면 이 목록을 지운다.
+    function isExistingAdminAccount() {
+      return request.auth != null && request.auth.uid in ['3wrfIz6Q8uNF0O0HHO9U4wTndE42', 'c38XV4GQyUQcoy2VsH17fAHkOji2'];
+    }
+
     // 이메일로 권한을 판단할 때 믿을 수 있는 토큰인지 확인한다.
-    // 이메일·비밀번호 가입은 메일 소유를 확인하지 않으므로, 인증을 마친 토큰만 믿는다.
+    // 이메일·비밀번호 가입은 메일 소유를 확인하지 않는다. 인증을 마친 토큰이나 기존 계정만 믿는다.
     // 이 검사가 없으면 아직 가입되지 않은 관리자 이메일로 누구나 가입해 권한을 얻는다.
     function hasTrustedEmail() {
       return tokenEmail() != ''
-        && request.auth.token.get('email_verified', false) == true;
+        && (request.auth.token.get('email_verified', false) == true || isExistingAdminAccount());
     }
 
     // 슈퍼관리자 판별 함수
@@ -28,12 +33,20 @@ service cloud.firestore {
       return /databases/$(database)/documents/schoolAdmins/$(schoolId);
     }
 
+    function schoolDoc(schoolId) {
+      return /databases/$(database)/documents/schools/$(schoolId);
+    }
+
     // 해당 학교의 관리자인지 판별한다.
     // 관리자 이메일은 공개 문서인 schools가 아니라 비공개 문서인 schoolAdmins에 둔다.
+    // schools의 admins 필드는 이전을 마칠 때까지만 함께 확인한다.
     function isSchoolAdmin(schoolId) {
-      return hasTrustedEmail()
-        && exists(adminsDoc(schoolId))
-        && tokenEmail() in get(adminsDoc(schoolId)).data.admins;
+      return hasTrustedEmail() && (
+        (exists(adminsDoc(schoolId))
+          && tokenEmail() in get(adminsDoc(schoolId)).data.admins)
+        || (exists(schoolDoc(schoolId))
+          && tokenEmail() in get(schoolDoc(schoolId)).data.get('admins', []))
+      );
     }
 
     // 자동 생성 문서 ID만 받는다. 관리자 화면에 들어가는 값이므로 형식을 고정한다.
@@ -92,12 +105,12 @@ service cloud.firestore {
       allow read: if true;
 
       // 슈퍼관리자만 생성·삭제 가능
-      allow create: if isSuperAdmin() && !request.resource.data.keys().hasAny(['admins']);
-      allow delete: if isSuperAdmin();
+      allow create, delete: if isSuperAdmin();
 
-      // 공개 문서이므로 admins 필드를 다시 넣지 못한다.
-      allow update: if (isSuperAdmin() || isSchoolAdmin(schoolId))
-        && !request.resource.data.keys().hasAny(['admins']);
+      // 학교 관리자는 관리자 목록을 바꿀 수 없다.
+      allow update: if isSuperAdmin()
+        || (isSchoolAdmin(schoolId)
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['admins']));
     }
 
     // === 학교 관리자 이메일 (schoolAdmins/{schoolId}) ===

@@ -22,6 +22,9 @@ import {
 
 const rules = readFileSync(new URL('../../firestore.rules', import.meta.url), 'utf8');
 const enforcesVerifiedEmail = rules.includes("get('email_verified', false) == true");
+// 과도기 규칙: 기존 계정 UID 고정과 schools.admins 인정이 남아 있다. 최종 규칙에서는 false다.
+const pinnedUids = [...(rules.match(/request\.auth\.uid in \[([^\]]*)\]/)?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]);
+const isTransition = pinnedUids.length > 0;
 const AUTO_ID = 'AbCdEfGhIjKlMnOpQrSt';
 const AUTO_ID_2 = 'ZyXwVuTsRqPoNmLkJiHg';
 const SUPER = 'greatsong@gmail.com';
@@ -181,7 +184,7 @@ test('슈퍼관리자 흐름: 학교 저장·승인·삭제·이전이 통과한
     await assertSucceeds(setDoc(doc(db, 'schools/default/responses/legacy1'), { name: '옛 기록', totalScore: 1 }));
 });
 
-test('이전 전 데이터: schools의 admins 필드도 인정한다 (1단계 규칙 전용)', { skip: enforcesVerifiedEmail }, async () => {
+test('이전 전 데이터: schools의 admins 필드도 인정한다 (과도기 규칙 전용)', { skip: !isTransition }, async () => {
     await env.withSecurityRulesDisabled((ctx) =>
         setDoc(doc(ctx.firestore(), 'schools/s4'), { schoolName: 'D', admins: [TEACHER] }));
     await assertSucceeds(getDocs(collection(teacher(), 'schools/s4/responses')));
@@ -189,12 +192,22 @@ test('이전 전 데이터: schools의 admins 필드도 인정한다 (1단계 �
     await assertFails(getDocs(collection(account('x', 'stranger@gmail.com'), 'schools/s4/responses')));
 });
 
-test('공개 문서인 schools에 관리자 이메일을 다시 넣지 못한다 (2단계 규칙 전용)', { skip: !enforcesVerifiedEmail }, async () => {
+test('기존 관리자 계정은 이메일 미인증이어도 잠기지 않는다 (과도기 규칙 전용)', { skip: !isTransition }, async () => {
+    await assertSucceeds(getDocs(collection(account(pinnedUids[0], SUPER, false), 'pendingSchools')));
+    await assertSucceeds(getDocs(collection(account(pinnedUids[1], TEACHER, false), 'schools/s1/responses')));
+});
+
+test('고정 UID라도 토큰에 해당 이메일이 없으면 권한이 없다 (과도기 규칙 전용)', { skip: !isTransition }, async () => {
+    await assertFails(getDocs(collection(account(pinnedUids[0], 'stranger@gmail.com', false), 'pendingSchools')));
+    await assertFails(getDocs(collection(env.authenticatedContext(pinnedUids[0], {}).firestore(), 'pendingSchools')));
+});
+
+test('공개 문서인 schools에 관리자 이메일을 다시 넣지 못한다 (최종 규칙 전용)', { skip: isTransition || !enforcesVerifiedEmail }, async () => {
     await assertFails(setDoc(doc(superAdmin(), 'schools/s5'), { schoolName: 'E', admins: [TEACHER] }));
     await assertFails(updateDoc(doc(superAdmin(), 'schools/s1'), { admins: [TEACHER] }));
 });
 
-test('이메일 미인증 계정은 슈퍼관리자·학교 관리자가 되지 못한다 (2단계 규칙 전용)', { skip: !enforcesVerifiedEmail }, async () => {
+test('이메일 미인증 신규 계정은 슈퍼관리자·학교 관리자가 되지 못한다', { skip: !enforcesVerifiedEmail }, async () => {
     const fakeSuper = account('fake', SUPER, false);
     const fakeTeacher = account('fake2', TEACHER, false);
     await assertFails(getDocs(collection(fakeSuper, 'schools/s1/responses')));
