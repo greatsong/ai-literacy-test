@@ -433,7 +433,8 @@
                     if (!snap.empty) {
                         snap.forEach(doc => {
                             const data = doc.data();
-                            adminSchoolsData[doc.id] = { id: doc.id, ...data, legacyAdmins: data.admins };
+                            // 문서 필드가 실제 문서 ID를 덮어쓰지 못하게 id를 마지막에 둔다.
+                            adminSchoolsData[doc.id] = { ...data, id: doc.id, legacyAdmins: data.admins };
                         });
                         await loadSchoolAdmins();
                         console.log("Loaded " + Object.keys(adminSchoolsData).length + " schools from Firestore");
@@ -589,6 +590,7 @@
 
             if (!id) { alert('학교 코드를 입력해주세요.'); return; }
             if (!name) { alert('학교 이름을 입력해주세요.'); return; }
+            if (!editingSchoolId && adminSchoolsData[id]) { alert('이미 있는 학교 코드입니다.'); return; }
 
             const schoolData = {
                 schoolName: name,
@@ -710,8 +712,9 @@
                 const classCount = parseInt((req.classes || '').match(/\d+/)?.[0]) || 10;
 
                 // 4. Firestore에 학교 등록
-                const batch = db.batch();
-                batch.set(db.collection('schools').doc(schoolId), {
+                // 같은 코드의 학교가 있으면 기존 학교를 덮어쓰지 않고 중단한다.
+                const schoolRef = db.collection('schools').doc(schoolId);
+                const schoolData = {
                     schoolName: req.schoolName,
                     teacherName: req.teacherName,
                     tagline: `${req.teacherName} & AI와 함께하는 성장 여행`,
@@ -719,9 +722,15 @@
                     classes: { default: classCount },
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                await db.runTransaction(async (tx) => {
+                    const existing = await tx.get(schoolRef);
+                    if (existing.exists) {
+                        throw new Error(`학교 코드 "${schoolId}"가 이미 있습니다. 학교 관리에서 확인해주세요.`);
+                    }
+                    tx.set(schoolRef, schoolData);
+                    tx.set(db.collection('schoolAdmins').doc(schoolId), { admins: [req.email.toLowerCase()] });
                 });
-                batch.set(db.collection('schoolAdmins').doc(schoolId), { admins: [req.email.toLowerCase()] });
-                await batch.commit();
 
                 // 5. Auth 계정은 신청 시 이미 생성됨 (비밀번호 미저장)
 
@@ -2291,6 +2300,7 @@
                         ...(idToken && { 'Authorization': `Bearer ${idToken}` })
                     },
                     body: JSON.stringify({
+                        schoolId: currentAdminSchool,
                         stats: { avgScore: avgScore },
                         weakCategory: weakCategory,
                         weakQuestion: weakQ ? `Q${weakQ.id}` : "-",

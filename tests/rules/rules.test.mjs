@@ -20,11 +20,14 @@ import {
     writeBatch,
 } from 'firebase/firestore';
 
-const rules = readFileSync(new URL('../../firestore.rules', import.meta.url), 'utf8');
+// 최종 규칙 시험: RULES_FILE=firestore.rules.final npm test
+const rulesFile = process.env.RULES_FILE || 'firestore.rules';
+const rules = readFileSync(new URL(`../../${rulesFile}`, import.meta.url), 'utf8');
 const enforcesVerifiedEmail = rules.includes("get('email_verified', false) == true");
-// 과도기 규칙: 기존 계정 UID 고정과 schools.admins 인정이 남아 있다. 최종 규칙에서는 false다.
-const pinnedUids = [...(rules.match(/request\.auth\.uid in \[([^\]]*)\]/)?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]);
-const isTransition = pinnedUids.length > 0;
+// 과도기 규칙: 기존 계정을 UID로 고정하고 schools.admins도 인정한다. 최종 규칙에서는 false다.
+const superUid = rules.match(/request\.auth\.uid in \['([^']+)'/)?.[1];
+const schoolPin = rules.match(/request\.auth\.uid == '([^']+)' && schoolId == '([^']+)'/);
+const isTransition = Boolean(superUid);
 const AUTO_ID = 'AbCdEfGhIjKlMnOpQrSt';
 const AUTO_ID_2 = 'ZyXwVuTsRqPoNmLkJiHg';
 const SUPER = 'greatsong@gmail.com';
@@ -106,6 +109,7 @@ test('교사 흐름: 익명 계정이 사용 신청을 제출한다', async () =
 test('비인증·익명·무관한 계정은 학생 응답을 읽지 못한다', async () => {
     for (const db of [nobody(), anon(), account('x', 'stranger@gmail.com')]) {
         await assertFails(getDocs(collection(db, 'schools/s1/responses')));
+        await assertFails(getDocs(collection(db, 'schoolAdmins')));
         await assertFails(getDocs(collection(db, 'results')));
         await assertFails(getDocs(collection(db, 'pendingSchools')));
     }
@@ -160,7 +164,8 @@ test('학교 관리자는 관리자 목록과 학교 존재를 바꾸지 못한�
     await assertFails(setDoc(doc(teacher(), 'schoolAdmins/s1'), { admins: [TEACHER, 'friend@x.kr'] }));
     await assertFails(updateDoc(doc(teacher(), 'schools/s1'), { admins: [TEACHER] }));
     await assertFails(deleteDoc(doc(teacher(), 'schools/s1')));
-    await assertSucceeds(updateDoc(doc(teacher(), 'schools/s1'), { tagline: '안내' }));
+    await assertFails(updateDoc(doc(teacher(), 'schools/s1'), { tagline: '안내' }));
+    await assertFails(updateDoc(doc(teacher(), 'schools/s1'), { id: 's2' }));
 });
 
 test('슈퍼관리자 흐름: 학교 저장·승인·삭제·이전이 통과한다', async () => {
@@ -168,6 +173,7 @@ test('슈퍼관리자 흐름: 학교 저장·승인·삭제·이전이 통과한
     await assertSucceeds(getDocs(collection(db, 'schools/s1/responses')));
     await assertSucceeds(getDocs(collection(db, 'results')));
     await assertSucceeds(getDocs(collection(db, 'pendingSchools')));
+    await assertSucceeds(getDocs(collection(db, 'schoolAdmins')));
     await assertSucceeds(updateDoc(doc(db, 'pendingSchools/p1'), { status: 'approved' }));
 
     const save = writeBatch(db);
@@ -193,13 +199,15 @@ test('이전 전 데이터: schools의 admins 필드도 인정한다 (과도기 
 });
 
 test('기존 관리자 계정은 이메일 미인증이어도 잠기지 않는다 (과도기 규칙 전용)', { skip: !isTransition }, async () => {
-    await assertSucceeds(getDocs(collection(account(pinnedUids[0], SUPER, false), 'pendingSchools')));
-    await assertSucceeds(getDocs(collection(account(pinnedUids[1], TEACHER, false), 'schools/s1/responses')));
+    await assertSucceeds(getDocs(collection(account(superUid, SUPER, false), 'pendingSchools')));
+    await assertSucceeds(getDocs(collection(account(schoolPin[1], TEACHER, false), `schools/${schoolPin[2]}/responses`)));
 });
 
-test('고정 UID라도 토큰에 해당 이메일이 없으면 권한이 없다 (과도기 규칙 전용)', { skip: !isTransition }, async () => {
-    await assertFails(getDocs(collection(account(pinnedUids[0], 'stranger@gmail.com', false), 'pendingSchools')));
-    await assertFails(getDocs(collection(env.authenticatedContext(pinnedUids[0], {}).firestore(), 'pendingSchools')));
+test('고정된 학교 관리자는 이메일을 바꿔도 다른 역할을 얻지 못한다 (과도기 규칙 전용)', { skip: !isTransition }, async () => {
+    const hijacked = account(schoolPin[1], SUPER, false);
+    await assertFails(getDocs(collection(hijacked, 'pendingSchools')));
+    await assertFails(getDocs(collection(hijacked, 'schools/s1/responses')));
+    await assertFails(getDocs(collection(account(schoolPin[1], TEACHER, false), 'schools/s1/responses')));
 });
 
 test('공개 문서인 schools에 관리자 이메일을 다시 넣지 못한다 (최종 규칙 전용)', { skip: isTransition || !enforcesVerifiedEmail }, async () => {

@@ -1,0 +1,141 @@
+// Firestore Security Rules
+// 배포: firebase deploy --only firestore:rules --project ai-literacy-test
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 익명 토큰에는 email 키가 없다. token.email을 바로 읽으면 평가 오류가 나므로 get()으로 읽는다.
+    function tokenEmail() {
+      return request.auth == null ? '' : request.auth.token.get('email', '');
+    }
+
+    // 이메일·비밀번호 가입은 메일 소유를 확인하지 않는다. 메일 인증을 마친 토큰의 이메일만 믿는다.
+    // 이 검사가 없으면 아직 가입되지 않은 관리자 이메일로 누구나 가입해 권한을 얻는다.
+    function hasVerifiedEmail() {
+      return tokenEmail() != ''
+        && request.auth.token.get('email_verified', false) == true;
+    }
+
+    function isSuperAdminEmail() {
+      return hasVerifiedEmail()
+        && tokenEmail() in ['greatsong@gmail.com', 'greatsong21@gmail.com'];
+    }
+
+    function adminsDoc(schoolId) {
+      return /databases/$(database)/documents/schoolAdmins/$(schoolId);
+    }
+
+    // 관리자 이메일은 공개 문서인 schools가 아니라 비공개 문서인 schoolAdmins에 둔다.
+    function isListedSchoolAdmin(schoolId) {
+      return hasVerifiedEmail()
+        && exists(adminsDoc(schoolId))
+        && tokenEmail() in get(adminsDoc(schoolId)).data.admins;
+    }
+
+    function isSuperAdmin() {
+      return isSuperAdminEmail();
+    }
+
+    function isSchoolAdmin(schoolId) {
+      return isListedSchoolAdmin(schoolId);
+    }
+
+    // 자동 생성 문서 ID만 받는다. 관리자 화면에 들어가는 값이므로 형식을 고정한다.
+    function isAutoId(docId) {
+      return docId.matches('^[A-Za-z0-9]{20}$');
+    }
+
+    // 짧은 표시 문자열. HTML로 해석될 문자를 받지 않는다.
+    function isSafeText(value, maxLength) {
+      return value is string
+        && value.size() <= maxLength
+        && value.matches('^[^<>"\']*$');
+    }
+
+    // index.html의 saveResultToFirebase가 저장하는 형식.
+    // name과 number를 고정해 학생 실명·번호가 저장되지 않게 한다.
+    function isValidResponse(schoolId, docId) {
+      let d = request.resource.data;
+      return isAutoId(docId)
+        && d.keys().hasOnly(['schoolId', 'grade', 'class', 'subjectClass', 'number', 'name',
+                             'totalScore', 'levelTitle', 'categoryScores', 'details', 'timestamp'])
+        && d.keys().hasAll(['schoolId', 'grade', 'class', 'totalScore', 'levelTitle',
+                            'categoryScores', 'details', 'timestamp'])
+        && d.schoolId == schoolId
+        && isSafeText(d.grade, 20)
+        && isSafeText(d['class'], 20)
+        && (d.get('subjectClass', null) == null || isSafeText(d.subjectClass, 60))
+        && d.get('number', null) == null
+        && d.get('name', '익명') == '익명'
+        && d.totalScore is number && d.totalScore >= 0 && d.totalScore <= 100
+        && isSafeText(d.levelTitle, 60)
+        && d.categoryScores is map && d.categoryScores.size() <= 20
+        && d.details is list && d.details.size() <= 40
+        && d.timestamp == request.time;
+    }
+
+    // teacher-guide.html의 sendRequest가 저장하는 형식
+    function isValidSchoolRequest(docId) {
+      let d = request.resource.data;
+      return isAutoId(docId)
+        && d.keys().hasOnly(['schoolName', 'teacherName', 'grades', 'classes', 'email',
+                             'status', 'requestedAt'])
+        && d.keys().hasAll(['schoolName', 'teacherName', 'email', 'status', 'requestedAt'])
+        && d.schoolName is string && d.schoolName.size() > 0 && d.schoolName.size() <= 60
+        && d.teacherName is string && d.teacherName.size() > 0 && d.teacherName.size() <= 40
+        && d.get('grades', '') is string && d.get('grades', '').size() <= 100
+        && d.get('classes', '') is string && d.get('classes', '').size() <= 100
+        && d.email is string && d.email.size() <= 254 && d.email.matches('^[^@\\s]+@[^@\\s]+$')
+        && d.status == 'pending'
+        && d.requestedAt == request.time;
+    }
+
+    // === 학교 설정 문서 (schools/{schoolId}) ===
+    match /schools/{schoolId} {
+      // 누구나 학교 목록 읽기 가능 (학생 학교 선택용). 개인정보를 넣지 않는다.
+      allow read: if true;
+
+      // 학교 문서는 슈퍼관리자만 바꾼다. 공개 문서이므로 admins 필드를 다시 넣지 못한다.
+      allow create, update: if isSuperAdmin() && !request.resource.data.keys().hasAny(['admins']);
+      allow delete: if isSuperAdmin();
+    }
+
+    // === 학교 관리자 이메일 (schoolAdmins/{schoolId}) ===
+    match /schoolAdmins/{schoolId} {
+      allow get: if isSuperAdmin() || isSchoolAdmin(schoolId);
+      allow list: if isSuperAdmin();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // === 학생 응답 (schools/{schoolId}/responses) ===
+    match /schools/{schoolId}/responses/{docId} {
+      // 학생: 익명 인증 후 정해진 형식으로만 제출 가능.
+      // 슈퍼관리자는 migrate-data.html의 옛 데이터 이전을 위해 형식 검사를 받지 않는다.
+      allow create: if request.auth != null
+        && (isValidResponse(schoolId, docId) || isSuperAdmin());
+
+      // 해당 학교 관리자 또는 슈퍼관리자만 조회/삭제 가능
+      allow read, delete: if isSuperAdmin() || isSchoolAdmin(schoolId);
+
+      // 수정은 불허 (제출 후 변경 방지)
+      allow update: if false;
+    }
+
+    // === 학교 사용 신청 (pendingSchools) ===
+    match /pendingSchools/{docId} {
+      // 누구나 신청 가능 (익명 인증)
+      allow create: if request.auth != null && isValidSchoolRequest(docId);
+
+      // 슈퍼관리자만 조회/수정/삭제 가능
+      allow read, update, delete: if isSuperAdmin();
+    }
+
+    // === 레거시 호환 (기존 results 컬렉션) ===
+    // 현재 클라이언트는 이 컬렉션에 쓰지 않는다.
+    match /results/{docId} {
+      allow create, update: if false;
+      allow read, delete: if isSuperAdmin();
+    }
+  }
+}
