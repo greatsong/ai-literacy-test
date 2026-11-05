@@ -1,0 +1,9 @@
+# Vercel CLI 배포는 .gitignore에 있는 파일도 올린다. 내부 파일을 업로드 단계에서 제외한다.
+.claude
+plan-*.md
+update_questions.py
+seed-schools.js
+cleanup-passwords.js
+migrate-data.html
+tests
+*.md
