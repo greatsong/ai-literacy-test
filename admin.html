@@ -396,10 +396,11 @@
 
     <script>
         // --- XSS 방지 ---
+        // 따옴표까지 처리해야 속성값 안에서도 안전하다.
+        // onclick 같은 인라인 핸들러 안의 문자열에는 esc()로도 부족하므로 data-* 속성으로 넘긴다.
+        const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
         function esc(str) {
-            const div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
+            return String(str ?? '').replace(/[&<>"']/g, c => ESC_MAP[c]);
         }
 
         // --- Multi-tenant State ---
@@ -604,11 +605,11 @@
                                 <span class="text-xs text-gray-500 ml-2">${esc(date)}</span>
                             </div>
                             <div class="flex gap-2">
-                                <button onclick="approveRequest('${req.id}')"
+                                <button data-req-id="${esc(req.id)}" onclick="approveRequest(this.dataset.reqId)"
                                     class="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700">
                                     승인
                                 </button>
-                                <button onclick="rejectRequest('${req.id}')"
+                                <button data-req-id="${esc(req.id)}" onclick="rejectRequest(this.dataset.reqId)"
                                     class="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600">
                                     거절
                                 </button>
@@ -639,7 +640,8 @@
                     .replace(/고등학교|중학교|초등학교|학교/g, '')
                     .trim()
                     .replace(/\s+/g, '-')
-                    .toLowerCase() || 'school-' + Date.now();
+                    .toLowerCase()
+                    .replace(/[^a-z0-9가-힣-]/g, '') || 'school-' + Date.now();
 
                 // 2. 학년 파싱
                 const gradesMatch = (req.grades || '').match(/\d+/g);
@@ -714,12 +716,12 @@
                     <td class="px-4 py-3">${esc(school.teacherName || '-')}</td>
                     <td class="px-4 py-3 text-xs">${(school.admins || []).length ? esc((school.admins || []).join(', ')) : '<span class="text-gray-300">미등록</span>'}</td>
                     <td class="px-4 py-3">
-                        <button onclick="navigator.clipboard.writeText('${studentUrl}').then(() => alert('복사됨!'))"
+                        <button data-url="${esc(studentUrl)}" onclick="navigator.clipboard.writeText(this.dataset.url).then(() => alert('복사됨!'))"
                             class="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline">URL 복사</button>
                     </td>
                     <td class="px-4 py-3">
-                        <button onclick="editSchool('${school.id}')" class="text-xs text-blue-600 hover:text-blue-800 font-bold mr-2">수정</button>
-                        <button onclick="deleteSchool('${school.id}')" class="text-xs text-red-500 hover:text-red-700 font-bold">삭제</button>
+                        <button data-school-id="${esc(school.id)}" onclick="editSchool(this.dataset.schoolId)" class="text-xs text-blue-600 hover:text-blue-800 font-bold mr-2">수정</button>
+                        <button data-school-id="${esc(school.id)}" onclick="deleteSchool(this.dataset.schoolId)" class="text-xs text-red-500 hover:text-red-700 font-bold">삭제</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -1655,10 +1657,10 @@
                         <input type="checkbox" class="student-checkbox" data-id="${esc(r.id)}" data-collection="${esc(r._collectionPath || '')}" onchange="updateDeleteButtonVisibility()">
                     </td>
                     <td class="px-6 py-4 font-medium text-gray-900">${esc(r.grade)}학년 ${esc(r.class)}반${r.subjectClass ? ' (' + esc(r.subjectClass) + ')' : ''}${schoolTag}</td>
-                    <td class="px-6 py-4">${r.totalScore}점</td>
+                    <td class="px-6 py-4">${esc(r.totalScore)}점</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 text-xs rounded-full ${r.totalScore >= 54 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
-                            ${r.levelTitle ? r.levelTitle.split('. ')[1] : '-'}
+                            ${r.levelTitle ? esc(String(r.levelTitle).split('. ')[1]) : '-'}
                         </span>
                     </td>
                     <td class="px-6 py-4 text-xs text-gray-500">${r.rDate.toLocaleString()}</td>
@@ -2213,7 +2215,7 @@
 
             } catch (e) {
                 console.error(e);
-                content.innerHTML = `<div class="text-red-500 text-center p-4">분석 중 오류가 발생했습니다.<br>${e.message}</div>`;
+                content.innerHTML = `<div class="text-red-500 text-center p-4">분석 중 오류가 발생했습니다.<br>${esc(e.message)}</div>`;
             }
         }
 

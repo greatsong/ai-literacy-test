@@ -27,7 +27,7 @@ if (typeof firebase !== 'undefined') {
                 .then(() => console.log("Firebase Auth: Signed in anonymously"))
                 .catch(e => console.error("Firebase Auth Error:", e));
         } else {
-            console.log("Firebase Auth: Existing user", user.email || "(anonymous)");
+            console.log("Firebase Auth: Existing user");
         }
     });
 
