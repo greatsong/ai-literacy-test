@@ -1,46 +1,123 @@
 // Firestore Security Rules
-// Firebase Console > Firestore > Rules 에 아래 내용을 붙여넣으세요.
-//
-// 적용 방법:
-// 1. https://console.firebase.google.com 접속
-// 2. ai-literacy-test 프로젝트 선택
-// 3. Firestore Database > Rules 탭
-// 4. 아래 내용 전체를 복사하여 붙여넣기
-// 5. "Publish" 클릭
+// 배포: firebase deploy --only firestore:rules --project ai-literacy-test
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 슈퍼관리자 판별 함수
-    function isSuperAdmin() {
-      return request.auth != null
-        && request.auth.token.email in ['greatsong@gmail.com', 'greatsong21@gmail.com'];
+    // 익명 토큰에는 email 키가 없다. token.email을 바로 읽으면 평가 오류가 나므로 get()으로 읽는다.
+    function tokenEmail() {
+      return request.auth == null ? '' : request.auth.token.get('email', '');
     }
 
-    // 해당 학교의 관리자인지 판별
+    // 이메일로 권한을 판단할 때 믿을 수 있는 토큰인지 확인한다.
+    function hasTrustedEmail() {
+      return tokenEmail() != '';
+    }
+
+    // 슈퍼관리자 판별 함수
+    function isSuperAdmin() {
+      return hasTrustedEmail()
+        && tokenEmail() in ['greatsong@gmail.com', 'greatsong21@gmail.com'];
+    }
+
+    function adminsDoc(schoolId) {
+      return /databases/$(database)/documents/schoolAdmins/$(schoolId);
+    }
+
+    function schoolDoc(schoolId) {
+      return /databases/$(database)/documents/schools/$(schoolId);
+    }
+
+    // 해당 학교의 관리자인지 판별한다.
+    // 관리자 이메일은 공개 문서인 schools가 아니라 비공개 문서인 schoolAdmins에 둔다.
+    // schools의 admins 필드는 이전을 마칠 때까지만 함께 확인한다.
     function isSchoolAdmin(schoolId) {
-      return request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email in get(/databases/$(database)/documents/schools/$(schoolId)).data.admins;
+      return hasTrustedEmail() && (
+        (exists(adminsDoc(schoolId))
+          && tokenEmail() in get(adminsDoc(schoolId)).data.admins)
+        || (exists(schoolDoc(schoolId))
+          && tokenEmail() in get(schoolDoc(schoolId)).data.get('admins', []))
+      );
+    }
+
+    // 자동 생성 문서 ID만 받는다. 관리자 화면에 들어가는 값이므로 형식을 고정한다.
+    function isAutoId(docId) {
+      return docId.matches('^[A-Za-z0-9]{20}$');
+    }
+
+    // 짧은 표시 문자열. HTML로 해석될 문자를 받지 않는다.
+    function isSafeText(value, maxLength) {
+      return value is string
+        && value.size() <= maxLength
+        && value.matches('^[^<>"\'&]*$');
+    }
+
+    // index.html의 saveResultToFirebase가 저장하는 형식.
+    // name과 number를 고정해 학생 실명·번호가 저장되지 않게 한다.
+    function isValidResponse(schoolId, docId) {
+      let d = request.resource.data;
+      return isAutoId(docId)
+        && d.keys().hasOnly(['schoolId', 'grade', 'class', 'subjectClass', 'number', 'name',
+                             'totalScore', 'levelTitle', 'categoryScores', 'details', 'timestamp'])
+        && d.keys().hasAll(['schoolId', 'grade', 'class', 'totalScore', 'levelTitle',
+                            'categoryScores', 'details', 'timestamp'])
+        && d.schoolId == schoolId
+        && isSafeText(d.grade, 20)
+        && isSafeText(d['class'], 20)
+        && (d.get('subjectClass', null) == null || isSafeText(d.subjectClass, 60))
+        && d.get('number', null) == null
+        && d.get('name', '익명') == '익명'
+        && d.totalScore is number && d.totalScore >= 0 && d.totalScore <= 100
+        && isSafeText(d.levelTitle, 60)
+        && d.categoryScores is map && d.categoryScores.size() <= 20
+        && d.details is list && d.details.size() <= 40
+        && d.timestamp == request.time;
+    }
+
+    // teacher-guide.html의 sendRequest가 저장하는 형식
+    function isValidSchoolRequest(docId) {
+      let d = request.resource.data;
+      return isAutoId(docId)
+        && d.keys().hasOnly(['schoolName', 'teacherName', 'grades', 'classes', 'email',
+                             'status', 'requestedAt'])
+        && d.keys().hasAll(['schoolName', 'teacherName', 'email', 'status', 'requestedAt'])
+        && d.schoolName is string && d.schoolName.size() > 0 && d.schoolName.size() <= 60
+        && d.teacherName is string && d.teacherName.size() > 0 && d.teacherName.size() <= 40
+        && d.get('grades', '') is string && d.get('grades', '').size() <= 100
+        && d.get('classes', '') is string && d.get('classes', '').size() <= 100
+        && d.email is string && d.email.size() <= 254 && d.email.matches('^[^@\\s]+@[^@\\s]+$')
+        && d.status == 'pending'
+        && d.requestedAt == request.time;
     }
 
     // === 학교 설정 문서 (schools/{schoolId}) ===
     match /schools/{schoolId} {
-      // 누구나 학교 목록 읽기 가능 (학생 학교 선택용)
+      // 누구나 학교 목록 읽기 가능 (학생 학교 선택용). 개인정보를 넣지 않는다.
       allow read: if true;
 
-      // 슈퍼관리자만 생성 가능
-      allow create: if isSuperAdmin();
+      // 슈퍼관리자만 생성·삭제 가능
+      allow create, delete: if isSuperAdmin();
 
-      // 해당 학교 관리자 또는 슈퍼관리자만 수정/삭제 가능
-      allow update, delete: if isSuperAdmin() || isSchoolAdmin(schoolId);
+      // 학교 관리자는 관리자 목록을 바꿀 수 없다.
+      allow update: if isSuperAdmin()
+        || (isSchoolAdmin(schoolId)
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['admins']));
+    }
+
+    // === 학교 관리자 이메일 (schoolAdmins/{schoolId}) ===
+    match /schoolAdmins/{schoolId} {
+      allow get: if isSuperAdmin() || isSchoolAdmin(schoolId);
+      allow list: if isSuperAdmin();
+      allow create, update, delete: if isSuperAdmin();
     }
 
     // === 학생 응답 (schools/{schoolId}/responses) ===
     match /schools/{schoolId}/responses/{docId} {
-      // 학생: 익명 인증 후 응답 제출 가능
-      allow create: if request.auth != null;
+      // 학생: 익명 인증 후 정해진 형식으로만 제출 가능.
+      // 슈퍼관리자는 migrate-data.html의 옛 데이터 이전을 위해 형식 검사를 받지 않는다.
+      allow create: if request.auth != null
+        && (isValidResponse(schoolId, docId) || isSuperAdmin());
 
       // 해당 학교 관리자 또는 슈퍼관리자만 조회/삭제 가능
       allow read, delete: if isSuperAdmin() || isSchoolAdmin(schoolId);
@@ -52,17 +129,17 @@ service cloud.firestore {
     // === 학교 사용 신청 (pendingSchools) ===
     match /pendingSchools/{docId} {
       // 누구나 신청 가능 (익명 인증)
-      allow create: if request.auth != null;
+      allow create: if request.auth != null && isValidSchoolRequest(docId);
 
       // 슈퍼관리자만 조회/수정/삭제 가능
       allow read, update, delete: if isSuperAdmin();
     }
 
     // === 레거시 호환 (기존 results 컬렉션) ===
+    // 현재 클라이언트는 이 컬렉션에 쓰지 않는다.
     match /results/{docId} {
-      allow create: if request.auth != null;
+      allow create, update: if false;
       allow read, delete: if isSuperAdmin();
-      allow update: if false;
     }
   }
 }
